@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package pillar.v1;
+
+option go_package = "github.com/robwittman/pillar/gen/proto/pillar/v1;pillarv1";
+
+import "google/protobuf/timestamp.proto";
+
+enum AgentStatus {
+  AGENT_STATUS_UNSPECIFIED = 0;
+  AGENT_STATUS_PENDING = 1;
+  AGENT_STATUS_RUNNING = 2;
+  AGENT_STATUS_STOPPED = 3;
+  AGENT_STATUS_ERROR = 4;
+}
+
+message AgentInfo {
+  string id = 1;
+  string name = 2;
+  AgentStatus status = 3;
+  map<string, string> metadata = 4;
+  map<string, string> labels = 5;
+}
+
+// Client-to-server messages
+message AgentMessage {
+  oneof payload {
+    ConnectRequest connect = 1;
+    Heartbeat heartbeat = 2;
+    EventReport event = 3;
+    TaskResult task_result = 4;
+  }
+}
+
+message ConnectRequest {
+  string agent_id = 1;
+  map<string, string> capabilities = 2;
+}
+
+message Heartbeat {
+  string agent_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  map<string, string> metrics = 3;
+}
+
+message EventReport {
+  string agent_id = 1;
+  string event_type = 2;
+  string payload = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message TaskResult {
+  string task_id = 1;
+  string agent_id = 2;
+  bool success = 3;
+  string output = 4;
+  string error = 5;
+}
+
+// Server-to-client messages
+message ServerMessage {
+  oneof payload {
+    ConnectAck connect_ack = 1;
+    HeartbeatAck heartbeat_ack = 2;
+    TaskAssignment task_assignment = 3;
+    Directive directive = 4;
+  }
+}
+
+message ConnectAck {
+  bool accepted = 1;
+  int32 heartbeat_interval_seconds = 2;
+  string message = 3;
+  AgentConfig config = 4;
+  AgentStatus status = 5;
+}
+
+message AgentConfig {
+  string agent_id = 1;
+  string model_provider = 2;
+  string model_id = 3;
+  string system_prompt = 4;
+  ModelParams model_params = 5;
+  string api_credential = 6;
+  repeated MCPServerConfig mcp_servers = 7;
+  ToolPermissions tool_permissions = 8;
+  int32 max_iterations = 9;
+  int32 token_budget = 10;
+  int32 task_timeout_seconds = 11;
+  repeated EscalationRule escalation_rules = 12;
+}
+
+message ModelParams {
+  double temperature = 1;
+  double top_p = 2;
+  int32 max_tokens = 3;
+}
+
+message MCPServerConfig {
+  string name = 1;
+  string transport_type = 2;
+  string command = 3;
+  repeated string args = 4;
+  string url = 5;
+  map<string, string> headers = 6;
+  map<string, string> env = 7;
+}
+
+message ToolPermissions {
+  repeated string allowed_tools = 1;
+  repeated string denied_tools = 2;
+}
+
+message EscalationRule {
+  string name = 1;
+  string condition = 2;
+  string action = 3;
+  string message = 4;
+}
+
+message HeartbeatAck {
+  google.protobuf.Timestamp server_time = 1;
+}
+
+message TaskAssignment {
+  string task_id = 1;
+  string task_type = 2;
+  string payload = 3;
+  google.protobuf.Timestamp deadline = 4;
+}
+
+message Directive {
+  string type = 1;
+  string payload = 2;
+}

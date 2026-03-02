@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package pillar.v1;
+
+option go_package = "github.com/robwittman/pillar/gen/proto/pillar/v1;pillarv1";
+
+import "pillar/v1/agent.proto";
+
+service AgentStreamService {
+  // Bidirectional streaming for agent-Pillar real-time communication.
+  // Agent sends AgentMessages (connect, heartbeats, events, task results).
+  // Server sends ServerMessages (ack, task assignments, directives).
+  rpc AgentStream(stream AgentMessage) returns (stream ServerMessage);
+}
