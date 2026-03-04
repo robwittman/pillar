@@ -28,6 +28,11 @@ type AgentRuntime interface {
 	Remove(ctx context.Context, agentID string) error
 }
 
+// TemplateProvisioner provisions integrations for newly created agents based on matching templates.
+type TemplateProvisioner interface {
+	ProvisionForAgent(ctx context.Context, agentID string, labels map[string]string) error
+}
+
 // AgentService defines the operations available on agents.
 type AgentService interface {
 	Create(ctx context.Context, name string, metadata, labels map[string]string) (*domain.Agent, error)
@@ -58,12 +63,20 @@ func WithRuntime(r AgentRuntime) AgentServiceOption {
 	}
 }
 
+// WithTemplateProvisioner sets the provisioner used to auto-create integrations from templates.
+func WithTemplateProvisioner(p TemplateProvisioner) AgentServiceOption {
+	return func(s *agentService) {
+		s.templateProvisioner = p
+	}
+}
+
 type agentService struct {
-	repo     domain.AgentRepository
-	status   domain.AgentStatusStore
-	logger   *slog.Logger
-	notifier AgentNotifier
-	runtime  AgentRuntime
+	repo                 domain.AgentRepository
+	status               domain.AgentStatusStore
+	logger               *slog.Logger
+	notifier             AgentNotifier
+	runtime              AgentRuntime
+	templateProvisioner  TemplateProvisioner
 }
 
 func NewAgentService(repo domain.AgentRepository, status domain.AgentStatusStore, logger *slog.Logger, opts ...AgentServiceOption) AgentService {
@@ -95,6 +108,12 @@ func (s *agentService) Create(ctx context.Context, name string, metadata, labels
 
 	if err := s.repo.Create(ctx, agent); err != nil {
 		return nil, err
+	}
+
+	if s.templateProvisioner != nil {
+		if err := s.templateProvisioner.ProvisionForAgent(ctx, agent.ID, agent.Labels); err != nil {
+			s.logger.Warn("template provisioning failed", "agent_id", agent.ID, "error", err)
+		}
 	}
 
 	s.logger.Info("agent created", "id", agent.ID, "name", agent.Name)

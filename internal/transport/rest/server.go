@@ -10,7 +10,7 @@ import (
 	"github.com/robwittman/pillar/internal/service"
 )
 
-func NewServer(svc service.AgentService, configSvc service.ConfigService, logger *slog.Logger) http.Handler {
+func NewServer(svc service.AgentService, configSvc service.ConfigService, integrationSvc service.IntegrationService, templateSvc service.IntegrationTemplateService, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -21,7 +21,9 @@ func NewServer(svc service.AgentService, configSvc service.ConfigService, logger
 
 	h := NewHandlers(svc, logger)
 	ch := NewConfigHandlers(configSvc, logger)
-	RegisterRoutes(r, h, ch)
+	ih := NewIntegrationHandlers(integrationSvc, logger)
+	ith := NewIntegrationTemplateHandlers(templateSvc, logger)
+	RegisterRoutes(r, h, ch, ih, ith)
 
 	return r
 }

@@ -2,7 +2,7 @@ package rest
 
 import "github.com/go-chi/chi/v5"
 
-func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers) {
+func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, ih *IntegrationHandlers, ith *IntegrationTemplateHandlers) {
 	r.Get("/health", h.Health)
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -24,6 +24,27 @@ func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers) {
 					r.Put("/", ch.UpdateConfig)
 					r.Delete("/", ch.DeleteConfig)
 				})
+
+				r.Route("/integrations", func(r chi.Router) {
+					r.Post("/", ih.CreateIntegration)
+					r.Get("/", ih.ListIntegrations)
+					r.Route("/{integID}", func(r chi.Router) {
+						r.Get("/", ih.GetIntegration)
+						r.Put("/", ih.UpdateIntegration)
+						r.Delete("/", ih.DeleteIntegration)
+					})
+				})
+			})
+		})
+
+		r.Route("/integration-templates", func(r chi.Router) {
+			r.Post("/", ith.CreateTemplate)
+			r.Get("/", ith.ListTemplates)
+			r.Route("/{templateID}", func(r chi.Router) {
+				r.Get("/", ith.GetTemplate)
+				r.Put("/", ith.UpdateTemplate)
+				r.Delete("/", ith.DeleteTemplate)
+				r.Get("/preview", ith.PreviewTemplate)
 			})
 		})
 	})

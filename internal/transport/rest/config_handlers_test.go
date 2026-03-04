@@ -23,7 +23,16 @@ func setupConfigRouter(agentSvc service.AgentService, configSvc service.ConfigSe
 	r := chi.NewRouter()
 	h := NewHandlers(agentSvc, logger)
 	ch := NewConfigHandlers(configSvc, logger)
-	RegisterRoutes(r, h, ch)
+	integSvc := &mock.IntegrationService{
+		CreateFn: func(ctx context.Context, integration *domain.Integration) error { return nil },
+		GetFn:    func(ctx context.Context, id string) (*domain.Integration, error) { return nil, nil },
+		ListFn:   func(ctx context.Context, agentID string) ([]*domain.Integration, error) { return nil, nil },
+		UpdateFn: func(ctx context.Context, integration *domain.Integration) error { return nil },
+		DeleteFn: func(ctx context.Context, id string) error { return nil },
+	}
+	ih := NewIntegrationHandlers(integSvc, logger)
+	ith := NewIntegrationTemplateHandlers(noopIntegrationTemplateService(), logger)
+	RegisterRoutes(r, h, ch, ih, ith)
 	return r
 }
 

@@ -64,6 +64,8 @@ func main() {
 	statusStore := redisstore.NewAgentStatusStore(redisClient)
 	configRepo := pgstore.NewAgentConfigRepository(pool)
 	secretStore := pgstore.NewSecretStore(pool)
+	integrationRepo := pgstore.NewIntegrationRepository(pool)
+	integrationTemplateRepo := pgstore.NewIntegrationTemplateRepository(pool)
 
 	// Stream manager + notifier (shared between service and gRPC layers)
 	streamMgr := grpctransport.NewStreamManager()
@@ -86,11 +88,15 @@ func main() {
 		logger.Info("kubernetes runtime enabled", "namespace", cfg.KubeNamespace, "image", cfg.AgentImage)
 	}
 
+	integrationTemplateSvc := service.NewIntegrationTemplateService(integrationTemplateRepo, integrationRepo, agentRepo, logger)
+	svcOpts = append(svcOpts, service.WithTemplateProvisioner(integrationTemplateSvc))
+
 	agentSvc := service.NewAgentService(agentRepo, statusStore, logger, svcOpts...)
 	configSvc := service.NewConfigService(configRepo, agentRepo, secretStore, logger)
+	integrationSvc := service.NewIntegrationService(integrationRepo, agentRepo, logger)
 
 	// HTTP server
-	httpHandler := rest.NewServer(agentSvc, configSvc, logger)
+	httpHandler := rest.NewServer(agentSvc, configSvc, integrationSvc, integrationTemplateSvc, logger)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", httpHandler)
