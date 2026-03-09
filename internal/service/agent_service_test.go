@@ -716,3 +716,106 @@ func TestDelete_NilRuntime(t *testing.T) {
 	err := svc.Delete(context.Background(), "agent1")
 	assert.NoError(t, err)
 }
+
+// --- EventEmitter ---
+
+func TestCreate_EmitsEvent(t *testing.T) {
+	var emittedType string
+	emitter := &mock.EventEmitter{
+		EmitFn: func(ctx context.Context, event domain.Event) {
+			emittedType = event.Type
+		},
+	}
+	repo := &mock.AgentRepository{
+		CreateFn: func(ctx context.Context, agent *domain.Agent) error {
+			return nil
+		},
+	}
+	status := &mock.AgentStatusStore{}
+	svc := newTestService(repo, status, service.WithEventEmitter(emitter))
+
+	_, err := svc.Create(context.Background(), "test-agent", nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "agent.created", emittedType)
+}
+
+func TestCreate_EmitterErrorNonFatal(t *testing.T) {
+	emitter := &mock.EventEmitter{
+		EmitFn: func(ctx context.Context, event domain.Event) {
+			// Emitter panics should not crash - but Emit doesn't return error
+			// so this just verifies the emitter is called
+		},
+	}
+	repo := &mock.AgentRepository{
+		CreateFn: func(ctx context.Context, agent *domain.Agent) error {
+			return nil
+		},
+	}
+	status := &mock.AgentStatusStore{}
+	svc := newTestService(repo, status, service.WithEventEmitter(emitter))
+
+	_, err := svc.Create(context.Background(), "test-agent", nil, nil)
+	assert.NoError(t, err)
+}
+
+func TestCreate_NilEmitter(t *testing.T) {
+	repo := &mock.AgentRepository{
+		CreateFn: func(ctx context.Context, agent *domain.Agent) error {
+			return nil
+		},
+	}
+	status := &mock.AgentStatusStore{}
+	svc := newTestService(repo, status)
+
+	_, err := svc.Create(context.Background(), "test-agent", nil, nil)
+	assert.NoError(t, err)
+}
+
+func TestStart_EmitsEvent(t *testing.T) {
+	var emittedType string
+	emitter := &mock.EventEmitter{
+		EmitFn: func(ctx context.Context, event domain.Event) {
+			emittedType = event.Type
+		},
+	}
+	repo := &mock.AgentRepository{
+		GetFn: func(ctx context.Context, id string) (*domain.Agent, error) {
+			return &domain.Agent{ID: id, Status: domain.AgentStatusPending}, nil
+		},
+		UpdateStatusFn: func(ctx context.Context, id string, status domain.AgentStatus) error {
+			return nil
+		},
+	}
+	svc := newTestService(repo, &mock.AgentStatusStore{}, service.WithEventEmitter(emitter))
+
+	err := svc.Start(context.Background(), "agent1")
+	assert.NoError(t, err)
+	assert.Equal(t, "agent.started", emittedType)
+}
+
+func TestStop_EmitsEvent(t *testing.T) {
+	var emittedType string
+	emitter := &mock.EventEmitter{
+		EmitFn: func(ctx context.Context, event domain.Event) {
+			emittedType = event.Type
+		},
+	}
+	repo := &mock.AgentRepository{
+		GetFn: func(ctx context.Context, id string) (*domain.Agent, error) {
+			return &domain.Agent{ID: id, Status: domain.AgentStatusRunning}, nil
+		},
+		UpdateStatusFn: func(ctx context.Context, id string, status domain.AgentStatus) error {
+			return nil
+		},
+	}
+	statusStore := &mock.AgentStatusStore{
+		SetOfflineFn: func(ctx context.Context, agentID string) error {
+			return nil
+		},
+	}
+	svc := newTestService(repo, statusStore, service.WithEventEmitter(emitter))
+
+	err := svc.Stop(context.Background(), "agent1")
+	assert.NoError(t, err)
+	assert.Equal(t, "agent.stopped", emittedType)
+}

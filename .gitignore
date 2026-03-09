@@ -27,3 +27,6 @@ gen/proto/
 .DS_Store
 
 .claude
+
+pillar
+pillarctl

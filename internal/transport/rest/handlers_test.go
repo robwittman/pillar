@@ -22,7 +22,6 @@ func setupRouter(svc service.AgentService) *chi.Mux {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	r := chi.NewRouter()
 	h := NewHandlers(svc, logger)
-	// Use a no-op ConfigService for agent-only tests
 	configSvc := &mock.ConfigService{
 		CreateConfigFn:         func(ctx context.Context, config *domain.AgentConfig, apiCredential string) error { return nil },
 		GetConfigFn:            func(ctx context.Context, agentID string) (*domain.AgentConfig, error) { return nil, nil },
@@ -31,28 +30,30 @@ func setupRouter(svc service.AgentService) *chi.Mux {
 		DeleteConfigFn:         func(ctx context.Context, agentID string) error { return nil },
 	}
 	ch := NewConfigHandlers(configSvc, logger)
-	integSvc := &mock.IntegrationService{
-		CreateFn: func(ctx context.Context, integration *domain.Integration) error { return nil },
-		GetFn:    func(ctx context.Context, id string) (*domain.Integration, error) { return nil, nil },
-		ListFn:   func(ctx context.Context, agentID string) ([]*domain.Integration, error) { return nil, nil },
-		UpdateFn: func(ctx context.Context, integration *domain.Integration) error { return nil },
-		DeleteFn: func(ctx context.Context, id string) error { return nil },
-	}
-	ih := NewIntegrationHandlers(integSvc, logger)
-	ith := NewIntegrationTemplateHandlers(noopIntegrationTemplateService(), logger)
-	RegisterRoutes(r, h, ch, ih, ith)
+	wh := NewWebhookHandlers(noopWebhookService(), logger)
+	ah := NewAttributeHandlers(noopAttributeService(), logger)
+	RegisterRoutes(r, h, ch, wh, ah)
 	return r
 }
 
-func noopIntegrationTemplateService() *mock.IntegrationTemplateService {
-	return &mock.IntegrationTemplateService{
-		CreateFn:            func(ctx context.Context, template *domain.IntegrationTemplate) error { return nil },
-		GetFn:               func(ctx context.Context, id string) (*domain.IntegrationTemplate, error) { return nil, nil },
-		ListFn:              func(ctx context.Context) ([]*domain.IntegrationTemplate, error) { return nil, nil },
-		UpdateFn:            func(ctx context.Context, template *domain.IntegrationTemplate) error { return nil },
-		DeleteFn:            func(ctx context.Context, id string) error { return nil },
-		PreviewFn:           func(ctx context.Context, id string) ([]*domain.Agent, error) { return nil, nil },
-		ProvisionForAgentFn: func(ctx context.Context, agentID string, labels map[string]string) error { return nil },
+func noopWebhookService() *mock.WebhookService {
+	return &mock.WebhookService{
+		CreateFn:         func(ctx context.Context, url, description string, eventTypes []string) (*domain.Webhook, string, error) { return nil, "", nil },
+		GetFn:            func(ctx context.Context, id string) (*domain.Webhook, error) { return nil, nil },
+		ListFn:           func(ctx context.Context) ([]*domain.Webhook, error) { return nil, nil },
+		UpdateFn:         func(ctx context.Context, id string, description string, eventTypes []string, status domain.WebhookStatus) (*domain.Webhook, error) { return nil, nil },
+		DeleteFn:         func(ctx context.Context, id string) error { return nil },
+		RotateSecretFn:   func(ctx context.Context, id string) (*domain.Webhook, string, error) { return nil, "", nil },
+		ListDeliveriesFn: func(ctx context.Context, webhookID string) ([]*domain.WebhookDelivery, error) { return nil, nil },
+	}
+}
+
+func noopAttributeService() *mock.AttributeService {
+	return &mock.AttributeService{
+		SetFn:    func(ctx context.Context, agentID, namespace string, value json.RawMessage) (*domain.AgentAttribute, error) { return nil, nil },
+		GetFn:    func(ctx context.Context, agentID, namespace string) (*domain.AgentAttribute, error) { return nil, nil },
+		ListFn:   func(ctx context.Context, agentID string) ([]*domain.AgentAttribute, error) { return nil, nil },
+		DeleteFn: func(ctx context.Context, agentID, namespace string) error { return nil },
 	}
 }
 

@@ -64,15 +64,22 @@ func main() {
 	statusStore := redisstore.NewAgentStatusStore(redisClient)
 	configRepo := pgstore.NewAgentConfigRepository(pool)
 	secretStore := pgstore.NewSecretStore(pool)
-	integrationRepo := pgstore.NewIntegrationRepository(pool)
-	integrationTemplateRepo := pgstore.NewIntegrationTemplateRepository(pool)
+	webhookRepo := pgstore.NewWebhookRepository(pool)
+	deliveryRepo := pgstore.NewWebhookDeliveryRepository(pool)
+	attrRepo := pgstore.NewAgentAttributeRepository(pool)
 
 	// Stream manager + notifier (shared between service and gRPC layers)
 	streamMgr := grpctransport.NewStreamManager()
 	notifier := grpctransport.NewStreamNotifier(streamMgr, logger)
 
+	// Webhook emitter
+	emitter := service.NewWebhookEmitter(webhookRepo, deliveryRepo, logger)
+
 	// Services
-	svcOpts := []service.AgentServiceOption{service.WithNotifier(notifier)}
+	svcOpts := []service.AgentServiceOption{
+		service.WithNotifier(notifier),
+		service.WithEventEmitter(emitter),
+	}
 
 	if cfg.KubeEnabled {
 		k8sRuntime, err := runtime.NewKubernetesRuntime(runtime.KubernetesConfig{
@@ -88,15 +95,18 @@ func main() {
 		logger.Info("kubernetes runtime enabled", "namespace", cfg.KubeNamespace, "image", cfg.AgentImage)
 	}
 
-	integrationTemplateSvc := service.NewIntegrationTemplateService(integrationTemplateRepo, integrationRepo, agentRepo, logger)
-	svcOpts = append(svcOpts, service.WithTemplateProvisioner(integrationTemplateSvc))
-
 	agentSvc := service.NewAgentService(agentRepo, statusStore, logger, svcOpts...)
 	configSvc := service.NewConfigService(configRepo, agentRepo, secretStore, logger)
-	integrationSvc := service.NewIntegrationService(integrationRepo, agentRepo, logger)
+	webhookSvc := service.NewWebhookService(webhookRepo, deliveryRepo, logger)
+	attrSvc := service.NewAttributeService(attrRepo, agentRepo, logger)
+
+	// Webhook worker
+	worker := service.NewWebhookWorker(webhookRepo, deliveryRepo, logger)
+	worker.Start(ctx)
+	defer worker.Stop()
 
 	// HTTP server
-	httpHandler := rest.NewServer(agentSvc, configSvc, integrationSvc, integrationTemplateSvc, logger)
+	httpHandler := rest.NewServer(agentSvc, configSvc, webhookSvc, attrSvc, logger)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", httpHandler)
@@ -108,7 +118,7 @@ func main() {
 	}
 
 	// gRPC server
-	grpcServer := grpctransport.NewServer(agentSvc, configSvc, streamMgr, logger)
+	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, streamMgr, logger)
 
 	// Start servers
 	errCh := make(chan error, 2)

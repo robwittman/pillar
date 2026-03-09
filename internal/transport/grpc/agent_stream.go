@@ -16,14 +16,16 @@ type AgentStreamService struct {
 	pillarv1.UnimplementedAgentStreamServiceServer
 	svc       service.AgentService
 	configSvc service.ConfigService
+	attrSvc   service.AttributeService
 	logger    *slog.Logger
 	streams   *StreamManager
 }
 
-func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigService, logger *slog.Logger) *AgentStreamService {
+func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logger *slog.Logger) *AgentStreamService {
 	return &AgentStreamService{
 		svc:       svc,
 		configSvc: configSvc,
+		attrSvc:   attrSvc,
 		logger:    logger,
 		streams:   NewStreamManager(),
 	}
@@ -32,10 +34,11 @@ func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigSer
 // NewAgentStreamServiceWithStreams creates an AgentStreamService using an externally
 // provided StreamManager. This allows main.go to share the StreamManager with a
 // StreamNotifier so that Start/Stop directives can reach connected agents.
-func NewAgentStreamServiceWithStreams(svc service.AgentService, configSvc service.ConfigService, streams *StreamManager, logger *slog.Logger) *AgentStreamService {
+func NewAgentStreamServiceWithStreams(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, streams *StreamManager, logger *slog.Logger) *AgentStreamService {
 	return &AgentStreamService{
 		svc:       svc,
 		configSvc: configSvc,
+		attrSvc:   attrSvc,
 		logger:    logger,
 		streams:   streams,
 	}
@@ -105,6 +108,18 @@ func (s *AgentStreamService) AgentStream(stream pillarv1.AgentStreamService_Agen
 					s.logger.Debug("no config for agent", "agent_id", agentID, "error", err)
 				} else {
 					ack.Config = toProtoConfig(cfg, credential)
+				}
+			}
+
+			if s.attrSvc != nil {
+				attrs, err := s.attrSvc.List(stream.Context(), agentID)
+				if err != nil {
+					s.logger.Debug("failed to fetch attributes", "agent_id", agentID, "error", err)
+				} else if len(attrs) > 0 {
+					ack.Attributes = make(map[string][]byte, len(attrs))
+					for _, attr := range attrs {
+						ack.Attributes[attr.Namespace] = attr.Value
+					}
 				}
 			}
 

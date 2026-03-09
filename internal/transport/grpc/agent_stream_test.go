@@ -158,7 +158,7 @@ func TestStreamManager_ConcurrentAccess(t *testing.T) {
 
 func TestAgentStream_ConnectAck(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -178,7 +178,7 @@ func TestAgentStream_ConnectAck(t *testing.T) {
 
 func TestAgentStream_HeartbeatAck(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -200,7 +200,7 @@ func TestAgentStream_HeartbeatAck(t *testing.T) {
 
 func TestAgentStream_EventLogged(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Event{
@@ -215,7 +215,7 @@ func TestAgentStream_EventLogged(t *testing.T) {
 
 func TestAgentStream_TaskResultLogged(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_TaskResult{
@@ -230,7 +230,7 @@ func TestAgentStream_TaskResultLogged(t *testing.T) {
 
 func TestAgentStream_ErrorCleanup(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	streamErr := assert.AnError
 	stream := newMockStream([]*pillarv1.AgentMessage{
@@ -248,7 +248,7 @@ func TestAgentStream_ErrorCleanup(t *testing.T) {
 
 func TestAgentStream_EOFCleanup(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -286,7 +286,7 @@ func TestAgentStream_ConnectAckWithConfig(t *testing.T) {
 			}, "sk-resolved-key", nil
 		},
 	}
-	ss := NewAgentStreamService(svc, configSvc, testLogger())
+	ss := NewAgentStreamService(svc, configSvc, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -328,7 +328,7 @@ func TestAgentStream_ConnectAckWithoutConfig(t *testing.T) {
 			return nil, "", domain.ErrConfigNotFound
 		},
 	}
-	ss := NewAgentStreamService(svc, configSvc, testLogger())
+	ss := NewAgentStreamService(svc, configSvc, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -348,7 +348,7 @@ func TestAgentStream_ConnectAckWithoutConfig(t *testing.T) {
 
 func TestAgentStream_ConnectAckNilConfigService(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -372,7 +372,7 @@ func TestAgentStream_ConnectAckStatusRunning(t *testing.T) {
 	svc := &mockHeartbeatService{
 		getAgent: &domain.Agent{ID: "agent1", Status: domain.AgentStatusRunning},
 	}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -393,7 +393,7 @@ func TestAgentStream_ConnectAckStatusPending(t *testing.T) {
 	svc := &mockHeartbeatService{
 		getAgent: &domain.Agent{ID: "agent1", Status: domain.AgentStatusPending},
 	}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -414,7 +414,7 @@ func TestAgentStream_ConnectAckStatusDefaultsOnNotFound(t *testing.T) {
 	svc := &mockHeartbeatService{
 		getErr: domain.ErrAgentNotFound,
 	}
-	ss := NewAgentStreamService(svc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -455,4 +455,55 @@ func TestStreamNotifier_AgentNotConnected(t *testing.T) {
 
 	err := notifier.NotifyDirective("missing", "start", "")
 	assert.NoError(t, err)
+}
+
+// --- ConnectAck with attributes ---
+
+func TestAgentStream_ConnectAckWithAttributes(t *testing.T) {
+	svc := &mockHeartbeatService{}
+	attrSvc := &mock.AttributeService{
+		ListFn: func(ctx context.Context, agentID string) ([]*domain.AgentAttribute, error) {
+			return []*domain.AgentAttribute{
+				{AgentID: agentID, Namespace: "vault", Value: []byte(`{"token":"abc"}`)},
+				{AgentID: agentID, Namespace: "keycloak", Value: []byte(`{"client_id":"xyz"}`)},
+			}, nil
+		},
+	}
+	ss := NewAgentStreamService(svc, nil, attrSvc, testLogger())
+
+	stream := newMockStream([]*pillarv1.AgentMessage{
+		{Payload: &pillarv1.AgentMessage_Connect{
+			Connect: &pillarv1.ConnectRequest{AgentId: "agent1"},
+		}},
+	}, errEOF)
+
+	err := ss.AgentStream(stream)
+	assert.NoError(t, err)
+
+	require.Len(t, stream.sent, 1)
+	ack := stream.sent[0].GetConnectAck()
+	require.NotNil(t, ack)
+	assert.True(t, ack.Accepted)
+	require.Len(t, ack.Attributes, 2)
+	assert.Equal(t, []byte(`{"token":"abc"}`), ack.Attributes["vault"])
+	assert.Equal(t, []byte(`{"client_id":"xyz"}`), ack.Attributes["keycloak"])
+}
+
+func TestAgentStream_ConnectAckNilAttributeService(t *testing.T) {
+	svc := &mockHeartbeatService{}
+	ss := NewAgentStreamService(svc, nil, nil, testLogger())
+
+	stream := newMockStream([]*pillarv1.AgentMessage{
+		{Payload: &pillarv1.AgentMessage_Connect{
+			Connect: &pillarv1.ConnectRequest{AgentId: "agent1"},
+		}},
+	}, errEOF)
+
+	err := ss.AgentStream(stream)
+	assert.NoError(t, err)
+
+	require.Len(t, stream.sent, 1)
+	ack := stream.sent[0].GetConnectAck()
+	require.NotNil(t, ack)
+	assert.Nil(t, ack.Attributes)
 }

@@ -74,6 +74,7 @@ message ConnectAck {
   string message = 3;
   AgentConfig config = 4;
   AgentStatus status = 5;
+  map<string, bytes> attributes = 6;
 }
 
 message AgentConfig {

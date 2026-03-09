@@ -12,9 +12,7 @@ var (
 	ErrInvalidConfig       = errors.New("invalid agent config")
 	ErrSecretNotFound      = errors.New("secret not found")
 
-	ErrIntegrationNotFound = errors.New("integration not found")
-	ErrInvalidIntegration  = errors.New("invalid integration")
-
-	ErrIntegrationTemplateNotFound = errors.New("integration template not found")
-	ErrInvalidIntegrationTemplate  = errors.New("invalid integration template")
+	ErrWebhookNotFound   = errors.New("webhook not found")
+	ErrInvalidWebhook    = errors.New("invalid webhook")
+	ErrAttributeNotFound = errors.New("attribute not found")
 )

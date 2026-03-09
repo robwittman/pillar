@@ -28,9 +28,9 @@ type AgentRuntime interface {
 	Remove(ctx context.Context, agentID string) error
 }
 
-// TemplateProvisioner provisions integrations for newly created agents based on matching templates.
-type TemplateProvisioner interface {
-	ProvisionForAgent(ctx context.Context, agentID string, labels map[string]string) error
+// EventEmitter emits lifecycle events for webhook delivery.
+type EventEmitter interface {
+	Emit(ctx context.Context, event domain.Event)
 }
 
 // AgentService defines the operations available on agents.
@@ -63,20 +63,20 @@ func WithRuntime(r AgentRuntime) AgentServiceOption {
 	}
 }
 
-// WithTemplateProvisioner sets the provisioner used to auto-create integrations from templates.
-func WithTemplateProvisioner(p TemplateProvisioner) AgentServiceOption {
+// WithEventEmitter sets the event emitter for lifecycle events.
+func WithEventEmitter(e EventEmitter) AgentServiceOption {
 	return func(s *agentService) {
-		s.templateProvisioner = p
+		s.emitter = e
 	}
 }
 
 type agentService struct {
-	repo                 domain.AgentRepository
-	status               domain.AgentStatusStore
-	logger               *slog.Logger
-	notifier             AgentNotifier
-	runtime              AgentRuntime
-	templateProvisioner  TemplateProvisioner
+	repo     domain.AgentRepository
+	status   domain.AgentStatusStore
+	logger   *slog.Logger
+	notifier AgentNotifier
+	runtime  AgentRuntime
+	emitter  EventEmitter
 }
 
 func NewAgentService(repo domain.AgentRepository, status domain.AgentStatusStore, logger *slog.Logger, opts ...AgentServiceOption) AgentService {
@@ -110,12 +110,7 @@ func (s *agentService) Create(ctx context.Context, name string, metadata, labels
 		return nil, err
 	}
 
-	if s.templateProvisioner != nil {
-		if err := s.templateProvisioner.ProvisionForAgent(ctx, agent.ID, agent.Labels); err != nil {
-			s.logger.Warn("template provisioning failed", "agent_id", agent.ID, "error", err)
-		}
-	}
-
+	s.emitEvent(ctx, "agent.created", agent)
 	s.logger.Info("agent created", "id", agent.ID, "name", agent.Name)
 	return agent, nil
 }
@@ -145,6 +140,7 @@ func (s *agentService) Update(ctx context.Context, id string, name string, metad
 	if err := s.repo.Update(ctx, agent); err != nil {
 		return nil, err
 	}
+	s.emitEvent(ctx, "agent.updated", agent)
 	return agent, nil
 }
 
@@ -157,6 +153,7 @@ func (s *agentService) Delete(ctx context.Context, id string) error {
 			s.logger.Warn("runtime failed to remove agent", "id", id, "error", err)
 		}
 	}
+	s.emitEvent(ctx, "agent.deleted", map[string]string{"id": id})
 	return s.repo.Delete(ctx, id)
 }
 
@@ -186,6 +183,7 @@ func (s *agentService) Start(ctx context.Context, id string) error {
 		}
 	}
 
+	s.emitEvent(ctx, "agent.started", map[string]string{"id": id})
 	s.logger.Info("agent started", "id", id)
 	return nil
 }
@@ -220,8 +218,21 @@ func (s *agentService) Stop(ctx context.Context, id string) error {
 		}
 	}
 
+	s.emitEvent(ctx, "agent.stopped", map[string]string{"id": id})
 	s.logger.Info("agent stopped", "id", id)
 	return nil
+}
+
+func (s *agentService) emitEvent(ctx context.Context, eventType string, data any) {
+	if s.emitter == nil {
+		return
+	}
+	s.emitter.Emit(ctx, domain.Event{
+		ID:        uuid.New().String(),
+		Type:      eventType,
+		Timestamp: time.Now(),
+		Data:      data,
+	})
 }
 
 type AgentStatusInfo struct {

@@ -2,7 +2,7 @@ package rest
 
 import "github.com/go-chi/chi/v5"
 
-func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, ih *IntegrationHandlers, ith *IntegrationTemplateHandlers) {
+func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHandlers, ah *AttributeHandlers) {
 	r.Get("/health", h.Health)
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -25,26 +25,26 @@ func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, ih *Integrati
 					r.Delete("/", ch.DeleteConfig)
 				})
 
-				r.Route("/integrations", func(r chi.Router) {
-					r.Post("/", ih.CreateIntegration)
-					r.Get("/", ih.ListIntegrations)
-					r.Route("/{integID}", func(r chi.Router) {
-						r.Get("/", ih.GetIntegration)
-						r.Put("/", ih.UpdateIntegration)
-						r.Delete("/", ih.DeleteIntegration)
+				r.Route("/attributes", func(r chi.Router) {
+					r.Get("/", ah.ListAttributes)
+					r.Route("/{namespace}", func(r chi.Router) {
+						r.Put("/", ah.SetAttribute)
+						r.Get("/", ah.GetAttribute)
+						r.Delete("/", ah.DeleteAttribute)
 					})
 				})
 			})
 		})
 
-		r.Route("/integration-templates", func(r chi.Router) {
-			r.Post("/", ith.CreateTemplate)
-			r.Get("/", ith.ListTemplates)
-			r.Route("/{templateID}", func(r chi.Router) {
-				r.Get("/", ith.GetTemplate)
-				r.Put("/", ith.UpdateTemplate)
-				r.Delete("/", ith.DeleteTemplate)
-				r.Get("/preview", ith.PreviewTemplate)
+		r.Route("/webhooks", func(r chi.Router) {
+			r.Post("/", wh.CreateWebhook)
+			r.Get("/", wh.ListWebhooks)
+			r.Route("/{webhookID}", func(r chi.Router) {
+				r.Get("/", wh.GetWebhook)
+				r.Put("/", wh.UpdateWebhook)
+				r.Delete("/", wh.DeleteWebhook)
+				r.Post("/rotate-secret", wh.RotateSecret)
+				r.Get("/deliveries", wh.ListDeliveries)
 			})
 		})
 	})
