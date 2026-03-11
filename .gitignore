@@ -22,15 +22,13 @@ coverage.txt
 .env.local
 .env.*
 
-# Generated
-gen/proto/
 
 # OS
 .DS_Store
 
 .claude
 
-pillar
-pillarctl
+/pillar
+/pillarctl
 configs/pillar.yaml
 example-agent

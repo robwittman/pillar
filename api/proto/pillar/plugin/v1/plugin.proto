@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package pillar.plugin.v1;
+
+option go_package = "github.com/robwittman/pillar/gen/proto/pillar/plugin/v1;pluginv1";
+
+service PluginService {
+  rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+  rpc OnEvent(EventRequest) returns (EventResponse);
+}
+
+message ConfigureRequest {
+  map<string, string> config = 1;
+}
+
+message ConfigureResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message EventRequest {
+  string id = 1;
+  string type = 2;
+  string timestamp = 3;
+  bytes data = 4;
+}
+
+message EventResponse {
+  bool success = 1;
+  string error = 2;
+  repeated AttributeWrite attributes = 3;
+}
+
+message AttributeWrite {
+  string agent_id = 1;
+  string namespace = 2;
+  bytes value = 3;
+}
