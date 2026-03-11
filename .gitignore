@@ -18,7 +18,9 @@ coverage.txt
 *.swo
 
 # Environment
+.env
 .env.local
+.env.*
 
 # Generated
 gen/proto/
