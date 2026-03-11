@@ -30,3 +30,5 @@ gen/proto/
 
 pillar
 pillarctl
+configs/pillar.yaml
+example-agent

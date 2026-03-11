@@ -1,0 +1,17 @@
+http_addr: ":8080"
+grpc_addr: ":9090"
+postgres_url: "postgres://pillar:pillar@localhost:5432/pillar?sslmode=disable"
+redis_addr: "localhost:6379"
+log_level: "debug"
+
+plugin_settings:
+  cache_dir: ~/.pillar/plugins
+
+plugins:
+#  - name: keycloak
+#    path: ./bin/example-plugin-keycloak
+#    config:
+#      realm: agents
+#      admin_url: https://${KEYCLOAK_HOST:-localhost:8443}/auth
+#      client_id: ${KC_CLIENT_ID:-pillar-admin}
+#      client_secret: ${KC_CLIENT_SECRET}

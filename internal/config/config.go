@@ -1,24 +1,99 @@
 package config
 
-import "github.com/caarlos0/env/v11"
+import (
+	"os"
+	"strconv"
+
+	"github.com/caarlos0/env/v11"
+	"gopkg.in/yaml.v3"
+)
+
+type PluginConfig struct {
+	Name    string            `yaml:"name"`
+	Source  string            `yaml:"source"`  // e.g. "github.com/robwittman/pillar-plugin-keycloak"
+	Version string            `yaml:"version"` // e.g. "1.0.0" or "latest"
+	Path    string            `yaml:"path"`    // local binary path (overrides source)
+	Config  map[string]string `yaml:"config"`
+}
+
+type PluginSettings struct {
+	CacheDir string `yaml:"cache_dir" env:"PILLAR_PLUGIN_CACHE_DIR"`
+}
 
 type Config struct {
-	HTTPAddr    string `env:"PILLAR_HTTP_ADDR" envDefault:":8080"`
-	GRPCAddr    string `env:"PILLAR_GRPC_ADDR" envDefault:":9090"`
-	PostgresURL string `env:"PILLAR_POSTGRES_URL" envDefault:"postgres://pillar:pillar@localhost:5432/pillar?sslmode=disable"`
-	RedisAddr   string `env:"PILLAR_REDIS_ADDR" envDefault:"localhost:6379"`
-	LogLevel    string `env:"PILLAR_LOG_LEVEL" envDefault:"info"`
+	HTTPAddr    string `env:"PILLAR_HTTP_ADDR" envDefault:":8080" yaml:"http_addr"`
+	GRPCAddr    string `env:"PILLAR_GRPC_ADDR" envDefault:":9090" yaml:"grpc_addr"`
+	PostgresURL string `env:"PILLAR_POSTGRES_URL" envDefault:"postgres://pillar:pillar@localhost:5432/pillar?sslmode=disable" yaml:"postgres_url"`
+	RedisAddr   string `env:"PILLAR_REDIS_ADDR" envDefault:"localhost:6379" yaml:"redis_addr"`
+	LogLevel    string `env:"PILLAR_LOG_LEVEL" envDefault:"info" yaml:"log_level"`
 
-	KubeEnabled      bool   `env:"PILLAR_KUBE_ENABLED" envDefault:"false"`
-	KubeNamespace    string `env:"PILLAR_KUBE_NAMESPACE" envDefault:"default"`
-	AgentImage       string `env:"PILLAR_AGENT_IMAGE" envDefault:"pillar-agent:latest"`
-	GRPCExternalAddr string `env:"PILLAR_GRPC_EXTERNAL_ADDR" envDefault:"host.docker.internal:9090"`
+	KubeEnabled      bool   `env:"PILLAR_KUBE_ENABLED" envDefault:"false" yaml:"kube_enabled"`
+	KubeNamespace    string `env:"PILLAR_KUBE_NAMESPACE" envDefault:"default" yaml:"kube_namespace"`
+	AgentImage       string `env:"PILLAR_AGENT_IMAGE" envDefault:"pillar-agent:latest" yaml:"agent_image"`
+	GRPCExternalAddr string `env:"PILLAR_GRPC_EXTERNAL_ADDR" envDefault:"host.docker.internal:9090" yaml:"grpc_external_addr"`
+
+	PluginSettings PluginSettings `yaml:"plugin_settings"`
+	Plugins        []PluginConfig `yaml:"plugins"`
 }
 
 func Load() (*Config, error) {
+	configFile := os.Getenv("PILLAR_CONFIG_FILE")
+
+	if configFile == "" {
+		// No config file — standard env-only loading with defaults
+		cfg := &Config{}
+		if err := env.Parse(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	}
+
+	// Load from YAML file
 	cfg := &Config{}
-	if err := env.Parse(cfg); err != nil {
+	data, err := os.ReadFile(configFile)
+	if err != nil {
 		return nil, err
 	}
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, err
+	}
+
+	// Apply explicitly set env vars (override YAML values)
+	overrideFromEnv(cfg)
+
 	return cfg, nil
+}
+
+// overrideFromEnv applies only env vars that are explicitly set.
+func overrideFromEnv(cfg *Config) {
+	if v, ok := os.LookupEnv("PILLAR_HTTP_ADDR"); ok {
+		cfg.HTTPAddr = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_GRPC_ADDR"); ok {
+		cfg.GRPCAddr = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_POSTGRES_URL"); ok {
+		cfg.PostgresURL = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_REDIS_ADDR"); ok {
+		cfg.RedisAddr = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_LOG_LEVEL"); ok {
+		cfg.LogLevel = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_KUBE_ENABLED"); ok {
+		cfg.KubeEnabled, _ = strconv.ParseBool(v)
+	}
+	if v, ok := os.LookupEnv("PILLAR_KUBE_NAMESPACE"); ok {
+		cfg.KubeNamespace = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_AGENT_IMAGE"); ok {
+		cfg.AgentImage = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_GRPC_EXTERNAL_ADDR"); ok {
+		cfg.GRPCExternalAddr = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_PLUGIN_CACHE_DIR"); ok {
+		cfg.PluginSettings.CacheDir = v
+	}
 }

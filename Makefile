@@ -12,6 +12,9 @@ build-ctl:
 build-example-agent:
 	go build -o bin/example-agent ./cmd/example-agent
 
+build-example-plugin-keycloak:
+	go build -o bin/example-plugin-keycloak ./cmd/example-plugin-keycloak
+
 run: build
 	$(BINARY)
 
@@ -43,6 +46,9 @@ proto:
 	protoc --go_out=gen/proto --go_opt=paths=source_relative \
 		--go-grpc_out=gen/proto --go-grpc_opt=paths=source_relative \
 		-I api/proto api/proto/pillar/v1/agent.proto api/proto/pillar/v1/service.proto
+	protoc --go_out=gen/proto --go_opt=paths=source_relative \
+		--go-grpc_out=gen/proto --go-grpc_opt=paths=source_relative \
+		-I api/proto api/proto/pillar/plugin/v1/plugin.proto
 
 docker-build-agent:
 	docker build -f Dockerfile.agent -t $(AGENT_IMAGE) .

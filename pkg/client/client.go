@@ -27,6 +27,7 @@ type Client struct {
 	heartbeatInterval time.Duration
 	stopHeartbeat     chan struct{}
 	config            *pillarv1.AgentConfig
+	attributes        map[string][]byte
 
 	mu          sync.RWMutex
 	status      pillarv1.AgentStatus
@@ -78,6 +79,7 @@ func (c *Client) Connect(ctx context.Context, capabilities map[string]string) er
 
 	c.heartbeatInterval = time.Duration(ack.HeartbeatIntervalSeconds) * time.Second
 	c.config = ack.Config
+	c.attributes = ack.Attributes
 	c.mu.Lock()
 	c.status = ack.Status
 	c.mu.Unlock()
@@ -140,6 +142,19 @@ func (c *Client) SendTaskResult(taskID string, success bool, output, errMsg stri
 
 func (c *Client) Config() *pillarv1.AgentConfig {
 	return c.config
+}
+
+// Attributes returns the raw attributes map received at connect time.
+func (c *Client) Attributes() map[string][]byte {
+	return c.attributes
+}
+
+// Attribute returns a single attribute by namespace, or nil if not found.
+func (c *Client) Attribute(namespace string) []byte {
+	if c.attributes == nil {
+		return nil
+	}
+	return c.attributes[namespace]
 }
 
 // Status returns the agent's last-known status from the server.

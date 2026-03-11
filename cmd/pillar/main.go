@@ -10,7 +10,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"path/filepath"
+
 	"github.com/robwittman/pillar/internal/config"
+	"github.com/robwittman/pillar/internal/plugin"
+	"github.com/robwittman/pillar/internal/plugin/resolver"
 	"github.com/robwittman/pillar/internal/runtime"
 	"github.com/robwittman/pillar/internal/service"
 	pgstore "github.com/robwittman/pillar/internal/storage/postgres"
@@ -71,11 +75,32 @@ func main() {
 	// Stream manager + notifier (shared between service and gRPC layers)
 	streamMgr := grpctransport.NewStreamManager()
 	notifier := grpctransport.NewStreamNotifier(streamMgr, logger)
+	attrSvc := service.NewAttributeService(attrRepo, agentRepo, logger)
 
-	// Webhook emitter
-	emitter := service.NewWebhookEmitter(webhookRepo, deliveryRepo, logger)
+	// Plugin resolver + manager
+	cacheDir := cfg.PluginSettings.CacheDir
+	if cacheDir == "" {
+		home, _ := os.UserHomeDir()
+		cacheDir = filepath.Join(home, ".pillar", "plugins")
+	}
+	pluginCache := resolver.NewCache(cacheDir, logger)
+	pluginResolver := resolver.NewCompositeResolver(pluginCache, logger)
 
-	// Services
+	pluginMgr := plugin.NewManager(logger, plugin.WithResolver(pluginResolver))
+	if len(cfg.Plugins) > 0 {
+		if err := pluginMgr.StartAll(cfg.Plugins); err != nil {
+			logger.Error("failed to start plugins", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("plugins started", "count", len(cfg.Plugins))
+	}
+	defer pluginMgr.StopAll()
+
+	// Event emitters: plugins (blocking) then webhooks (async)
+	pluginEmitter := service.NewPluginEmitter(pluginMgr, attrSvc, logger)
+	webhookEmitter := service.NewWebhookEmitter(webhookRepo, deliveryRepo, logger)
+	emitter := service.NewCompositeEmitter(pluginEmitter, webhookEmitter)
+
 	svcOpts := []service.AgentServiceOption{
 		service.WithNotifier(notifier),
 		service.WithEventEmitter(emitter),
@@ -98,7 +123,6 @@ func main() {
 	agentSvc := service.NewAgentService(agentRepo, statusStore, logger, svcOpts...)
 	configSvc := service.NewConfigService(configRepo, agentRepo, secretStore, logger)
 	webhookSvc := service.NewWebhookService(webhookRepo, deliveryRepo, logger)
-	attrSvc := service.NewAttributeService(attrRepo, agentRepo, logger)
 
 	// Webhook worker
 	worker := service.NewWebhookWorker(webhookRepo, deliveryRepo, logger)
