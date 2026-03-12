@@ -17,15 +17,17 @@ type AgentStreamService struct {
 	svc       service.AgentService
 	configSvc service.ConfigService
 	attrSvc   service.AttributeService
+	logSvc    *service.LogService
 	logger    *slog.Logger
 	streams   *StreamManager
 }
 
-func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logger *slog.Logger) *AgentStreamService {
+func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, logger *slog.Logger) *AgentStreamService {
 	return &AgentStreamService{
 		svc:       svc,
 		configSvc: configSvc,
 		attrSvc:   attrSvc,
+		logSvc:    logSvc,
 		logger:    logger,
 		streams:   NewStreamManager(),
 	}
@@ -34,11 +36,12 @@ func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigSer
 // NewAgentStreamServiceWithStreams creates an AgentStreamService using an externally
 // provided StreamManager. This allows main.go to share the StreamManager with a
 // StreamNotifier so that Start/Stop directives can reach connected agents.
-func NewAgentStreamServiceWithStreams(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, streams *StreamManager, logger *slog.Logger) *AgentStreamService {
+func NewAgentStreamServiceWithStreams(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, streams *StreamManager, logger *slog.Logger) *AgentStreamService {
 	return &AgentStreamService{
 		svc:       svc,
 		configSvc: configSvc,
 		attrSvc:   attrSvc,
+		logSvc:    logSvc,
 		logger:    logger,
 		streams:   streams,
 	}
@@ -148,11 +151,13 @@ func (s *AgentStreamService) AgentStream(stream pillarv1.AgentStreamService_Agen
 			}
 
 		case *pillarv1.AgentMessage_Event:
-			s.logger.Info("agent event",
+			s.logger.Debug("agent event",
 				"agent_id", p.Event.AgentId,
 				"type", p.Event.EventType,
-				"payload", p.Event.Payload,
 			)
+			if s.logSvc != nil {
+				s.logSvc.Ingest(stream.Context(), p.Event.AgentId, p.Event.Payload)
+			}
 
 		case *pillarv1.AgentMessage_TaskResult:
 			s.logger.Info("task result",

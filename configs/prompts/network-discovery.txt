@@ -181,3 +181,6 @@ Produce a final structured report in this exact format:
 ```
 
 Be thorough. This report will be compared across environments to verify network security posture.
+
+/plugin marketplace add anthropics/claude-code
+/plugin install frontend-design@claude-code-plugins

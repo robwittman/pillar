@@ -23,6 +23,10 @@ coverage.txt
 .env.*
 
 
+# Web UI
+web/node_modules/
+web/dist/
+
 # OS
 .DS_Store
 

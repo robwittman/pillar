@@ -1,9 +1,12 @@
-.PHONY: build build-ctl build-example-agent run test test-integration lint clean docker-up docker-down migrate-up migrate-down proto docker-build-agent kind-load-agent
+.PHONY: build build-ctl build-example-agent build-ui dev-ui run test test-integration lint clean docker-up docker-down migrate-up migrate-down proto docker-build-agent kind-load-agent
 
 BINARY := bin/pillar
 AGENT_IMAGE ?= pillar-agent:latest
 
-build:
+build-ui:
+	cd web && npm install && npm run build
+
+build: build-ui
 	go build -o $(BINARY) ./cmd/pillar
 
 build-ctl:
@@ -14,6 +17,9 @@ build-example-agent:
 
 build-example-plugin-keycloak:
 	go build -o bin/example-plugin-keycloak ./cmd/example-plugin-keycloak
+
+dev-ui:
+	cd web && npm run dev
 
 run: build
 	$(BINARY)
@@ -29,6 +35,7 @@ lint:
 
 clean:
 	rm -rf bin/
+	rm -rf web/dist
 
 docker-up:
 	docker compose -f deployments/docker-compose.yml up -d

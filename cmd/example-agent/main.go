@@ -64,11 +64,14 @@ func main() {
 		logger.Info("received attributes", "namespaces", namespaces)
 	}
 
-	// Build runner options
-	var runnerOpts []agent.RunnerOption
+	// Build runner options — always send events to Pillar via gRPC,
+	// optionally also write NDJSON to stderr for local debugging.
+	grpcEmitter := agent.NewGrpcEmitter(c, *agentID, logger)
+	var emitter agent.Emitter = grpcEmitter
 	if *streamJSON {
-		runnerOpts = append(runnerOpts, agent.WithEvents(agent.NewEventWriter(os.Stderr, *agentID)))
+		emitter = agent.NewMultiEmitter(grpcEmitter, agent.NewEventWriter(os.Stderr, *agentID))
 	}
+	runnerOpts := []agent.RunnerOption{agent.WithEvents(emitter)}
 
 	// One-shot mode: run a task immediately and exit
 	if *task != "" {

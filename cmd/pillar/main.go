@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"path/filepath"
 
 	"github.com/robwittman/pillar/internal/config"
 	"github.com/robwittman/pillar/internal/plugin"
@@ -21,6 +22,7 @@ import (
 	redisstore "github.com/robwittman/pillar/internal/storage/redis"
 	grpctransport "github.com/robwittman/pillar/internal/transport/grpc"
 	"github.com/robwittman/pillar/internal/transport/rest"
+	"github.com/robwittman/pillar/web"
 )
 
 func main() {
@@ -125,17 +127,44 @@ func main() {
 	configSvc := service.NewConfigService(configRepo, agentRepo, secretStore, logger)
 	webhookSvc := service.NewWebhookService(webhookRepo, deliveryRepo, logger)
 
+	// Agent log service
+	logStore := redisstore.NewAgentLogStore(redisClient)
+	logSvc := service.NewLogService(logStore, logger)
+
 	// Webhook worker
 	worker := service.NewWebhookWorker(webhookRepo, deliveryRepo, logger)
 	worker.Start(ctx)
 	defer worker.Stop()
 
 	// HTTP server
-	httpHandler := rest.NewServer(agentSvc, configSvc, webhookSvc, attrSvc, logger)
+	httpHandler := rest.NewServer(agentSvc, configSvc, webhookSvc, attrSvc, logSvc, logger)
+
+	// SPA file server from embedded assets
+	distFS, _ := fs.Sub(web.Assets, "dist")
+	fileServer := http.FileServer(http.FS(distFS))
+	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Serve static files if they exist; otherwise serve index.html for SPA routing
+		path := r.URL.Path
+		if path == "/" {
+			r.URL.Path = "/index.html"
+		}
+		// Check if file exists in embedded FS
+		f, err := distFS.Open(strings.TrimPrefix(r.URL.Path, "/"))
+		if err == nil {
+			f.Close()
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		// Fallback to index.html for client-side routes
+		r.URL.Path = "/index.html"
+		fileServer.ServeHTTP(w, r)
+	})
 
 	mux := http.NewServeMux()
-	mux.Handle("/", httpHandler)
+	mux.Handle("/api/", httpHandler)
+	mux.Handle("/health", httpHandler)
 	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/", spaHandler)
 
 	httpServer := &http.Server{
 		Addr:    cfg.HTTPAddr,
@@ -143,7 +172,7 @@ func main() {
 	}
 
 	// gRPC server
-	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, streamMgr, logger)
+	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, logSvc, streamMgr, logger)
 
 	// Start servers
 	errCh := make(chan error, 2)

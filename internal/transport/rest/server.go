@@ -10,7 +10,7 @@ import (
 	"github.com/robwittman/pillar/internal/service"
 )
 
-func NewServer(svc service.AgentService, configSvc service.ConfigService, webhookSvc service.WebhookService, attrSvc service.AttributeService, logger *slog.Logger) http.Handler {
+func NewServer(svc service.AgentService, configSvc service.ConfigService, webhookSvc service.WebhookService, attrSvc service.AttributeService, logSvc *service.LogService, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -23,7 +23,8 @@ func NewServer(svc service.AgentService, configSvc service.ConfigService, webhoo
 	ch := NewConfigHandlers(configSvc, logger)
 	wh := NewWebhookHandlers(webhookSvc, logger)
 	ah := NewAttributeHandlers(attrSvc, logger)
-	RegisterRoutes(r, h, ch, wh, ah)
+	lh := NewLogHandlers(logSvc, logger)
+	RegisterRoutes(r, h, ch, wh, ah, lh)
 
 	return r
 }

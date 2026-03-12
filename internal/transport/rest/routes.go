@@ -2,7 +2,7 @@ package rest
 
 import "github.com/go-chi/chi/v5"
 
-func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHandlers, ah *AttributeHandlers) {
+func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHandlers, ah *AttributeHandlers, lh *LogHandlers) {
 	r.Get("/health", h.Health)
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -33,6 +33,9 @@ func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHa
 						r.Delete("/", ah.DeleteAttribute)
 					})
 				})
+
+				r.Get("/logs", lh.GetLogs)
+				r.Get("/logs/stream", lh.StreamLogs)
 			})
 		})
 
