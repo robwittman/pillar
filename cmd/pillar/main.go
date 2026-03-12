@@ -108,6 +108,7 @@ func main() {
 
 	if cfg.KubeEnabled {
 		k8sRuntime, err := runtime.NewKubernetesRuntime(runtime.KubernetesConfig{
+			Context:          cfg.KubeContext,
 			Namespace:        cfg.KubeNamespace,
 			AgentImage:       cfg.AgentImage,
 			GRPCExternalAddr: cfg.GRPCExternalAddr,

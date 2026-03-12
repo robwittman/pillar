@@ -71,52 +71,14 @@ func NewRunner(cfg *pillarv1.AgentConfig, attributes map[string][]byte, logger *
 }
 
 func (r *Runner) registerBuiltinTools() {
-	r.RegisterTool(anthropic.ToolUnionParam{
-		OfTool: &anthropic.ToolParam{
-			Name:        "http_request",
-			Description: anthropic.String("Make an HTTP request. Use this to interact with REST APIs."),
-			InputSchema: anthropic.ToolInputSchemaParam{
-				Properties: map[string]interface{}{
-					"method": map[string]interface{}{
-						"type":        "string",
-						"description": "HTTP method (GET, POST, PUT, DELETE, PATCH)",
-					},
-					"url": map[string]interface{}{
-						"type":        "string",
-						"description": "Full URL to request",
-					},
-					"headers": map[string]interface{}{
-						"type":        "object",
-						"description": "HTTP headers as key-value pairs",
-						"additionalProperties": map[string]interface{}{
-							"type": "string",
-						},
-					},
-					"body": map[string]interface{}{
-						"type":        "string",
-						"description": "Request body (for POST/PUT/PATCH)",
-					},
-				},
-				Required: []string{"method", "url"},
-			},
-		},
-	}, r.handleHTTPRequest)
-
-	r.RegisterTool(anthropic.ToolUnionParam{
-		OfTool: &anthropic.ToolParam{
-			Name:        "get_attribute",
-			Description: anthropic.String("Read an agent attribute by namespace. Attributes contain credentials and configuration from external systems."),
-			InputSchema: anthropic.ToolInputSchemaParam{
-				Properties: map[string]interface{}{
-					"namespace": map[string]interface{}{
-						"type":        "string",
-						"description": "The attribute namespace (e.g., 'keycloak', 'redmine')",
-					},
-				},
-				Required: []string{"namespace"},
-			},
-		},
-	}, r.handleGetAttribute)
+	var registered []string
+	for _, bt := range r.builtinTools() {
+		if r.toolAllowed(bt.name) {
+			r.RegisterTool(bt.tool, bt.handler)
+			registered = append(registered, bt.name)
+		}
+	}
+	r.logger.Info("registered builtin tools", "tools", registered)
 }
 
 // RegisterTool adds a custom tool to the runner.

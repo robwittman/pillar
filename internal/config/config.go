@@ -28,12 +28,26 @@ type Config struct {
 	LogLevel    string `env:"PILLAR_LOG_LEVEL" envDefault:"info" yaml:"log_level"`
 
 	KubeEnabled      bool   `env:"PILLAR_KUBE_ENABLED" envDefault:"false" yaml:"kube_enabled"`
+	KubeContext      string `env:"PILLAR_KUBE_CONTEXT" yaml:"kube_context"`
 	KubeNamespace    string `env:"PILLAR_KUBE_NAMESPACE" envDefault:"default" yaml:"kube_namespace"`
 	AgentImage       string `env:"PILLAR_AGENT_IMAGE" envDefault:"pillar-agent:latest" yaml:"agent_image"`
 	GRPCExternalAddr string `env:"PILLAR_GRPC_EXTERNAL_ADDR" envDefault:"host.docker.internal:9090" yaml:"grpc_external_addr"`
 
 	PluginSettings PluginSettings `yaml:"plugin_settings"`
 	Plugins        []PluginConfig `yaml:"plugins"`
+}
+
+func defaultConfig() *Config {
+	return &Config{
+		HTTPAddr:         ":8080",
+		GRPCAddr:         ":9090",
+		PostgresURL:      "postgres://pillar:pillar@localhost:5432/pillar?sslmode=disable",
+		RedisAddr:        "localhost:6379",
+		LogLevel:         "info",
+		KubeNamespace:    "default",
+		AgentImage:       "pillar-agent:latest",
+		GRPCExternalAddr: "host.docker.internal:9090",
+	}
 }
 
 func Load() (*Config, error) {
@@ -48,8 +62,9 @@ func Load() (*Config, error) {
 		return cfg, nil
 	}
 
-	// Load from YAML file
-	cfg := &Config{}
+	// Load from YAML file — start with defaults since envDefault tags
+	// are not applied when loading from YAML.
+	cfg := defaultConfig()
 	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, err
@@ -83,6 +98,9 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v, ok := os.LookupEnv("PILLAR_KUBE_ENABLED"); ok {
 		cfg.KubeEnabled, _ = strconv.ParseBool(v)
+	}
+	if v, ok := os.LookupEnv("PILLAR_KUBE_CONTEXT"); ok {
+		cfg.KubeContext = v
 	}
 	if v, ok := os.LookupEnv("PILLAR_KUBE_NAMESPACE"); ok {
 		cfg.KubeNamespace = v

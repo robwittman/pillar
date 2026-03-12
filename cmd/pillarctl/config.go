@@ -30,6 +30,8 @@ var (
 	cfgMaxIterations int
 	cfgTokenBudget   int
 	cfgTaskTimeout   int
+	cfgAllowedTools  []string
+	cfgDeniedTools   []string
 )
 
 func addConfigFlags(cmd *cobra.Command) {
@@ -40,6 +42,8 @@ func addConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&cfgMaxIterations, "max-iterations", 0, "Max iterations")
 	cmd.Flags().IntVar(&cfgTokenBudget, "token-budget", 0, "Token budget")
 	cmd.Flags().IntVar(&cfgTaskTimeout, "task-timeout", 0, "Task timeout in seconds")
+	cmd.Flags().StringSliceVar(&cfgAllowedTools, "allowed-tools", nil, "Allowlist of builtin tools (comma-separated)")
+	cmd.Flags().StringSliceVar(&cfgDeniedTools, "denied-tools", nil, "Denylist of builtin tools (comma-separated)")
 }
 
 var configCmd = &cobra.Command{
@@ -124,6 +128,16 @@ func buildConfigBody() map[string]any {
 	}
 	if cfgTaskTimeout != 0 {
 		body["task_timeout_seconds"] = cfgTaskTimeout
+	}
+	if len(cfgAllowedTools) > 0 || len(cfgDeniedTools) > 0 {
+		tp := map[string]any{}
+		if len(cfgAllowedTools) > 0 {
+			tp["allowed_tools"] = cfgAllowedTools
+		}
+		if len(cfgDeniedTools) > 0 {
+			tp["denied_tools"] = cfgDeniedTools
+		}
+		body["tool_permissions"] = tp
 	}
 	return body
 }

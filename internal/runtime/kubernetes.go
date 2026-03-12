@@ -15,8 +15,9 @@ import (
 
 // KubernetesConfig holds configuration for the Kubernetes runtime.
 type KubernetesConfig struct {
-	Namespace       string
-	AgentImage      string
+	Context          string
+	Namespace        string
+	AgentImage       string
 	GRPCExternalAddr string
 }
 
@@ -31,11 +32,21 @@ type KubernetesRuntime struct {
 // It loads kubeconfig via standard rules (KUBECONFIG env, ~/.kube/config).
 func NewKubernetesRuntime(cfg KubernetesConfig, logger *slog.Logger) (*KubernetesRuntime, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, nil)
+	overrides := &clientcmd.ConfigOverrides{}
+	if cfg.Context != "" {
+		overrides.CurrentContext = cfg.Context
+	}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
 	restConfig, err := kubeConfig.ClientConfig()
 	if err != nil {
 		return nil, fmt.Errorf("load kubeconfig: %w", err)
 	}
+
+	logger.Info("kubernetes client config",
+		"host", restConfig.Host,
+		"context", cfg.Context,
+		"namespace", cfg.Namespace,
+	)
 
 	cs, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -61,7 +72,14 @@ func (r *KubernetesRuntime) EnsureRunning(ctx context.Context, agentID string) e
 	existing, err := deploymentsClient.Get(ctx, name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		deploy := r.buildDeployment(agentID, 1)
+		r.logger.Debug("creating deployment", "name", name, "namespace", r.cfg.Namespace)
 		if _, err := deploymentsClient.Create(ctx, deploy, metav1.CreateOptions{}); err != nil {
+			r.logger.Error("deployment create failed",
+				"name", name,
+				"namespace", r.cfg.Namespace,
+				"error", err,
+				"status_reason", apierrors.ReasonForError(err),
+			)
 			return fmt.Errorf("create deployment %s: %w", name, err)
 		}
 		r.logger.Info("created agent deployment", "name", name, "agent_id", agentID)

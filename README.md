@@ -473,3 +473,12 @@ pillar/
   pkg/client/               Go client SDK for agents
   scripts/                  Migration runner
 ```
+
+```
+pillarctl config create 8a972dc2-260a-4817-a9da-43519f7657aa \
+    --provider claude \
+    --model claude-sonnet-4-6 \
+    --api-credential "$ANTHROPIC_API_KEY" \
+    --max-iterations 10 \
+    --system-prompt "You are a network security engineer. You are tasked with discovering all the resources you can discover from the network you reside in. You can issue read-only type queries, but should abstain from modifying any resources during your test."
+```
