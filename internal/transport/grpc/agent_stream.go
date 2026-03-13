@@ -18,16 +18,18 @@ type AgentStreamService struct {
 	configSvc service.ConfigService
 	attrSvc   service.AttributeService
 	logSvc    *service.LogService
+	taskSvc   service.TaskService
 	logger    *slog.Logger
 	streams   *StreamManager
 }
 
-func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, logger *slog.Logger) *AgentStreamService {
+func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, taskSvc service.TaskService, logger *slog.Logger) *AgentStreamService {
 	return &AgentStreamService{
 		svc:       svc,
 		configSvc: configSvc,
 		attrSvc:   attrSvc,
 		logSvc:    logSvc,
+		taskSvc:   taskSvc,
 		logger:    logger,
 		streams:   NewStreamManager(),
 	}
@@ -36,12 +38,13 @@ func NewAgentStreamService(svc service.AgentService, configSvc service.ConfigSer
 // NewAgentStreamServiceWithStreams creates an AgentStreamService using an externally
 // provided StreamManager. This allows main.go to share the StreamManager with a
 // StreamNotifier so that Start/Stop directives can reach connected agents.
-func NewAgentStreamServiceWithStreams(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, streams *StreamManager, logger *slog.Logger) *AgentStreamService {
+func NewAgentStreamServiceWithStreams(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, taskSvc service.TaskService, streams *StreamManager, logger *slog.Logger) *AgentStreamService {
 	return &AgentStreamService{
 		svc:       svc,
 		configSvc: configSvc,
 		attrSvc:   attrSvc,
 		logSvc:    logSvc,
+		taskSvc:   taskSvc,
 		logger:    logger,
 		streams:   streams,
 	}
@@ -62,6 +65,19 @@ func (n *StreamNotifier) NotifyDirective(agentID, directiveType, payload string)
 	return n.streams.SendToAgent(agentID, &pillarv1.ServerMessage{
 		Payload: &pillarv1.ServerMessage_Directive{
 			Directive: &pillarv1.Directive{Type: directiveType, Payload: payload},
+		},
+	})
+}
+
+// SendTaskAssignment implements service.TaskNotifier.
+func (n *StreamNotifier) SendTaskAssignment(agentID, taskID, prompt string) error {
+	return n.streams.SendToAgent(agentID, &pillarv1.ServerMessage{
+		Payload: &pillarv1.ServerMessage_TaskAssignment{
+			TaskAssignment: &pillarv1.TaskAssignment{
+				TaskId:   taskID,
+				TaskType: "prompt",
+				Payload:  prompt,
+			},
 		},
 	})
 }
@@ -134,6 +150,13 @@ func (s *AgentStreamService) AgentStream(stream pillarv1.AgentStreamService_Agen
 				return err
 			}
 
+			// Deliver any pending tasks queued while the agent was offline
+			if s.taskSvc != nil {
+				if err := s.taskSvc.DeliverPending(stream.Context(), agentID); err != nil {
+					s.logger.Warn("failed to deliver pending tasks", "agent_id", agentID, "error", err)
+				}
+			}
+
 		case *pillarv1.AgentMessage_Heartbeat:
 			ctx := stream.Context()
 			if err := s.svc.Heartbeat(ctx, p.Heartbeat.AgentId); err != nil {
@@ -165,6 +188,15 @@ func (s *AgentStreamService) AgentStream(stream pillarv1.AgentStreamService_Agen
 				"task_id", p.TaskResult.TaskId,
 				"success", p.TaskResult.Success,
 			)
+			if s.taskSvc != nil && p.TaskResult.TaskId != "" {
+				result := p.TaskResult.Output
+				if !p.TaskResult.Success && p.TaskResult.Error != "" {
+					result = p.TaskResult.Error
+				}
+				if _, err := s.taskSvc.Complete(stream.Context(), p.TaskResult.TaskId, result, p.TaskResult.Success); err != nil {
+					s.logger.Warn("failed to complete task", "task_id", p.TaskResult.TaskId, "error", err)
+				}
+			}
 		}
 	}
 }

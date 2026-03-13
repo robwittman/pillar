@@ -4,6 +4,8 @@ import { useAgent, useAgentStatus, useStartAgent, useStopAgent, useDeleteAgent }
 import { useConfig, useCreateConfig, useUpdateConfig, useDeleteConfig } from '../hooks/useConfig'
 import { useAttributes, useSetAttribute, useDeleteAttribute } from '../hooks/useAttributes'
 import { useLogs, useLogStream } from '../hooks/useLogs'
+import { useAgentTasks } from '../hooks/useTasks'
+import type { TaskStatus } from '../api/types'
 import StatusBadge from '../components/shared/StatusBadge'
 import OnlineIndicator from '../components/shared/OnlineIndicator'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
@@ -12,7 +14,7 @@ import LoadingSpinner from '../components/shared/LoadingSpinner'
 import ErrorAlert from '../components/shared/ErrorAlert'
 import EmptyState from '../components/shared/EmptyState'
 
-type Tab = 'overview' | 'config' | 'attributes' | 'logs'
+type Tab = 'overview' | 'config' | 'attributes' | 'logs' | 'tasks'
 
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -39,6 +41,7 @@ export default function AgentDetailPage() {
     { key: 'config', label: 'Config' },
     { key: 'attributes', label: 'Attributes' },
     { key: 'logs', label: 'Logs' },
+    { key: 'tasks', label: 'Tasks' },
   ]
 
   return (
@@ -99,6 +102,7 @@ export default function AgentDetailPage() {
       {tab === 'config' && <ConfigTab agentId={id!} />}
       {tab === 'attributes' && <AttributesTab agentId={id!} />}
       {tab === 'logs' && <LogsTab agentId={id!} />}
+      {tab === 'tasks' && <TasksTab agentId={id!} />}
 
       <ConfirmDialog
         open={confirmDelete}
@@ -581,6 +585,70 @@ function LogsTab({ agentId }: { agentId: string }) {
           <div ref={logsEndRef} />
         </div>
       </div>
+    </div>
+  )
+}
+
+const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
+  pending: 'bg-yellow-100 text-yellow-700',
+  assigned: 'bg-blue-100 text-blue-700',
+  running: 'bg-indigo-100 text-indigo-700',
+  completed: 'bg-green-100 text-green-700',
+  failed: 'bg-red-100 text-red-700',
+}
+
+function TasksTab({ agentId }: { agentId: string }) {
+  const { data: tasks, isLoading } = useAgentTasks(agentId)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  if (isLoading) return <LoadingSpinner />
+
+  if (!tasks || tasks.length === 0) {
+    return <EmptyState title="No tasks" description="Tasks appear here when triggered by events or created manually." />
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-gray-500 mb-3">{tasks.length} tasks (auto-refreshes)</p>
+      {tasks.map(task => {
+        const expanded = expandedId === task.id
+        return (
+          <div key={task.id} className="bg-white rounded-lg shadow">
+            <div
+              className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50"
+              onClick={() => setExpandedId(expanded ? null : task.id)}
+            >
+              <span className="text-gray-400 text-xs">{expanded ? '▼' : '▶'}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${TASK_STATUS_COLORS[task.status]}`}>
+                {task.status}
+              </span>
+              <span className="text-sm text-gray-900 truncate flex-1">{task.prompt}</span>
+              <span className="text-xs text-gray-400 shrink-0">{new Date(task.created_at).toLocaleString()}</span>
+            </div>
+            {expanded && (
+              <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Prompt</p>
+                  <pre className="text-sm bg-gray-50 rounded p-3 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">{task.prompt}</pre>
+                </div>
+                {task.result && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">Result</p>
+                    <pre className={`text-sm rounded p-3 whitespace-pre-wrap break-words max-h-64 overflow-y-auto ${
+                      task.status === 'failed' ? 'bg-red-50 text-red-900' : 'bg-green-50 text-green-900'
+                    }`}>{task.result}</pre>
+                  </div>
+                )}
+                <div className="text-xs text-gray-400">
+                  ID: {task.id}
+                  {task.trigger_id && <> | Trigger: {task.trigger_id}</>}
+                  {task.completed_at && <> | Completed: {new Date(task.completed_at).toLocaleString()}</>}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

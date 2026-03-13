@@ -15,4 +15,11 @@ var (
 	ErrWebhookNotFound   = errors.New("webhook not found")
 	ErrInvalidWebhook    = errors.New("invalid webhook")
 	ErrAttributeNotFound = errors.New("attribute not found")
+
+	ErrSourceNotFound  = errors.New("source not found")
+	ErrInvalidSource   = errors.New("invalid source")
+	ErrTriggerNotFound = errors.New("trigger not found")
+	ErrInvalidTrigger  = errors.New("invalid trigger")
+	ErrTaskNotFound    = errors.New("task not found")
+	ErrInvalidTask     = errors.New("invalid task")
 )

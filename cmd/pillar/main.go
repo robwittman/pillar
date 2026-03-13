@@ -131,13 +131,22 @@ func main() {
 	logStore := redisstore.NewAgentLogStore(redisClient)
 	logSvc := service.NewLogService(logStore, logger)
 
+	// Task, Source, Trigger services
+	sourceRepo := pgstore.NewSourceRepository(pool)
+	triggerRepo := pgstore.NewTriggerRepository(pool)
+	taskRepo := pgstore.NewTaskRepository(pool)
+
+	taskSvc := service.NewTaskService(taskRepo, notifier, logger)
+	triggerSvc := service.NewTriggerService(triggerRepo, logger)
+	sourceSvc := service.NewSourceService(sourceRepo, triggerRepo, taskSvc, logger)
+
 	// Webhook worker
 	worker := service.NewWebhookWorker(webhookRepo, deliveryRepo, logger)
 	worker.Start(ctx)
 	defer worker.Stop()
 
 	// HTTP server
-	httpHandler := rest.NewServer(agentSvc, configSvc, webhookSvc, attrSvc, logSvc, logger)
+	httpHandler := rest.NewServer(agentSvc, configSvc, webhookSvc, attrSvc, logSvc, sourceSvc, triggerSvc, taskSvc, logger)
 
 	// SPA file server from embedded assets
 	distFS, _ := fs.Sub(web.Assets, "dist")
@@ -172,7 +181,7 @@ func main() {
 	}
 
 	// gRPC server
-	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, logSvc, streamMgr, logger)
+	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, logSvc, taskSvc, streamMgr, logger)
 
 	// Start servers
 	errCh := make(chan error, 2)

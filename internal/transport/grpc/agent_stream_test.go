@@ -158,7 +158,7 @@ func TestStreamManager_ConcurrentAccess(t *testing.T) {
 
 func TestAgentStream_ConnectAck(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -178,7 +178,7 @@ func TestAgentStream_ConnectAck(t *testing.T) {
 
 func TestAgentStream_HeartbeatAck(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -200,7 +200,7 @@ func TestAgentStream_HeartbeatAck(t *testing.T) {
 
 func TestAgentStream_EventLogged(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Event{
@@ -215,7 +215,7 @@ func TestAgentStream_EventLogged(t *testing.T) {
 
 func TestAgentStream_TaskResultLogged(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_TaskResult{
@@ -230,7 +230,7 @@ func TestAgentStream_TaskResultLogged(t *testing.T) {
 
 func TestAgentStream_ErrorCleanup(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	streamErr := assert.AnError
 	stream := newMockStream([]*pillarv1.AgentMessage{
@@ -248,7 +248,7 @@ func TestAgentStream_ErrorCleanup(t *testing.T) {
 
 func TestAgentStream_EOFCleanup(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -286,7 +286,7 @@ func TestAgentStream_ConnectAckWithConfig(t *testing.T) {
 			}, "sk-resolved-key", nil
 		},
 	}
-	ss := NewAgentStreamService(svc, configSvc, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, configSvc, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -328,7 +328,7 @@ func TestAgentStream_ConnectAckWithoutConfig(t *testing.T) {
 			return nil, "", domain.ErrConfigNotFound
 		},
 	}
-	ss := NewAgentStreamService(svc, configSvc, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, configSvc, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -348,7 +348,7 @@ func TestAgentStream_ConnectAckWithoutConfig(t *testing.T) {
 
 func TestAgentStream_ConnectAckNilConfigService(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -372,7 +372,7 @@ func TestAgentStream_ConnectAckStatusRunning(t *testing.T) {
 	svc := &mockHeartbeatService{
 		getAgent: &domain.Agent{ID: "agent1", Status: domain.AgentStatusRunning},
 	}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -393,7 +393,7 @@ func TestAgentStream_ConnectAckStatusPending(t *testing.T) {
 	svc := &mockHeartbeatService{
 		getAgent: &domain.Agent{ID: "agent1", Status: domain.AgentStatusPending},
 	}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -414,7 +414,7 @@ func TestAgentStream_ConnectAckStatusDefaultsOnNotFound(t *testing.T) {
 	svc := &mockHeartbeatService{
 		getErr: domain.ErrAgentNotFound,
 	}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -469,7 +469,7 @@ func TestAgentStream_ConnectAckWithAttributes(t *testing.T) {
 			}, nil
 		},
 	}
-	ss := NewAgentStreamService(svc, nil, attrSvc, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, attrSvc, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{
@@ -491,7 +491,7 @@ func TestAgentStream_ConnectAckWithAttributes(t *testing.T) {
 
 func TestAgentStream_ConnectAckNilAttributeService(t *testing.T) {
 	svc := &mockHeartbeatService{}
-	ss := NewAgentStreamService(svc, nil, nil, nil, testLogger())
+	ss := NewAgentStreamService(svc, nil, nil, nil, nil, testLogger())
 
 	stream := newMockStream([]*pillarv1.AgentMessage{
 		{Payload: &pillarv1.AgentMessage_Connect{

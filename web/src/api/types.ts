@@ -133,3 +133,72 @@ export interface UpdateWebhookRequest {
   event_types?: string[]
   status?: WebhookStatus
 }
+
+// Sources
+export interface Source {
+  id: string
+  name: string
+  secret?: string
+  created_at: string
+  updated_at: string
+}
+
+// Triggers
+export type TaskStatus = 'pending' | 'assigned' | 'running' | 'completed' | 'failed'
+
+export interface FilterCondition {
+  path: string
+  op: 'eq' | 'neq' | 'contains' | 'exists'
+  value?: string
+}
+
+export interface TriggerFilter {
+  conditions: FilterCondition[]
+}
+
+export interface Trigger {
+  id: string
+  source_id: string
+  agent_id: string
+  name: string
+  filter: TriggerFilter
+  task_template: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateTriggerRequest {
+  source_id: string
+  agent_id: string
+  name: string
+  filter?: TriggerFilter
+  task_template: string
+}
+
+export interface UpdateTriggerRequest {
+  name?: string
+  filter?: TriggerFilter
+  task_template?: string
+  enabled?: boolean
+}
+
+// Tasks
+export interface Task {
+  id: string
+  agent_id: string
+  trigger_id?: string
+  status: TaskStatus
+  prompt: string
+  context?: unknown
+  result?: string
+  created_at: string
+  updated_at: string
+  completed_at?: string
+}
+
+export interface CreateTaskRequest {
+  agent_id: string
+  prompt: string
+  context?: unknown
+}

@@ -11,14 +11,14 @@ import (
 	"github.com/robwittman/pillar/internal/service"
 )
 
-func NewServer(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, streams *StreamManager, logger *slog.Logger) *grpc.Server {
+func NewServer(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, taskSvc service.TaskService, streams *StreamManager, logger *slog.Logger) *grpc.Server {
 	s := grpc.NewServer()
 
 	var streamService *AgentStreamService
 	if streams != nil {
-		streamService = NewAgentStreamServiceWithStreams(svc, configSvc, attrSvc, logSvc, streams, logger)
+		streamService = NewAgentStreamServiceWithStreams(svc, configSvc, attrSvc, logSvc, taskSvc, streams, logger)
 	} else {
-		streamService = NewAgentStreamService(svc, configSvc, attrSvc, logSvc, logger)
+		streamService = NewAgentStreamService(svc, configSvc, attrSvc, logSvc, taskSvc, logger)
 	}
 	pillarv1.RegisterAgentStreamServiceServer(s, streamService)
 	reflection.Register(s)

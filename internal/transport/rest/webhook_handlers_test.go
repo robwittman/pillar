@@ -31,7 +31,7 @@ func setupWebhookRouter(webhookSvc service.WebhookService) *chi.Mux {
 	}, logger)
 	wh := NewWebhookHandlers(webhookSvc, logger)
 	ah := NewAttributeHandlers(noopAttributeService(), logger)
-	RegisterRoutes(r, h, ch, wh, ah, nil)
+	RegisterRoutes(r, h, ch, wh, ah, nil, nil, nil, nil)
 	return r
 }
 

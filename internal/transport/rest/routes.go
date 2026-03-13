@@ -2,7 +2,7 @@ package rest
 
 import "github.com/go-chi/chi/v5"
 
-func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHandlers, ah *AttributeHandlers, lh *LogHandlers) {
+func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHandlers, ah *AttributeHandlers, lh *LogHandlers, sh *SourceHandlers, trh *TriggerHandlers, tkh *TaskHandlers) {
 	r.Get("/health", h.Health)
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -36,6 +36,8 @@ func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHa
 
 				r.Get("/logs", lh.GetLogs)
 				r.Get("/logs/stream", lh.StreamLogs)
+
+				r.Get("/tasks", tkh.ListAgentTasks)
 			})
 		})
 
@@ -48,6 +50,36 @@ func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHa
 				r.Delete("/", wh.DeleteWebhook)
 				r.Post("/rotate-secret", wh.RotateSecret)
 				r.Get("/deliveries", wh.ListDeliveries)
+			})
+		})
+
+		r.Route("/sources", func(r chi.Router) {
+			r.Post("/", sh.CreateSource)
+			r.Get("/", sh.ListSources)
+			r.Route("/{sourceID}", func(r chi.Router) {
+				r.Get("/", sh.GetSource)
+				r.Put("/", sh.UpdateSource)
+				r.Delete("/", sh.DeleteSource)
+				r.Post("/rotate-secret", sh.RotateSourceSecret)
+				r.Post("/events", sh.HandleSourceEvent)
+			})
+		})
+
+		r.Route("/triggers", func(r chi.Router) {
+			r.Post("/", trh.CreateTrigger)
+			r.Get("/", trh.ListTriggers)
+			r.Route("/{triggerID}", func(r chi.Router) {
+				r.Get("/", trh.GetTrigger)
+				r.Put("/", trh.UpdateTrigger)
+				r.Delete("/", trh.DeleteTrigger)
+			})
+		})
+
+		r.Route("/tasks", func(r chi.Router) {
+			r.Post("/", tkh.CreateTask)
+			r.Get("/", tkh.ListTasks)
+			r.Route("/{taskID}", func(r chi.Router) {
+				r.Get("/", tkh.GetTask)
 			})
 		})
 	})
