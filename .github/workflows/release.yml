@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get next version
+        id: version
+        run: |
+          # Get the latest tag, default to v0.0.0 if none exists
+          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest=$LATEST"
+
+          # Bump patch version
+          MAJOR=$(echo "$LATEST" | cut -d. -f1)
+          MINOR=$(echo "$LATEST" | cut -d. -f2)
+          PATCH=$(echo "$LATEST" | cut -d. -f3)
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT="${MAJOR}.${MINOR}.${NEXT_PATCH}"
+
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Next version: $NEXT"
+
+      - name: Check if release needed
+        id: check
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          if [ "$LATEST_TAG" = "none" ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            # Check if there are commits since the last tag
+            COMMITS=$(git rev-list "${LATEST_TAG}..HEAD" --count)
+            if [ "$COMMITS" -gt 0 ]; then
+              echo "needed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "needed=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Create release
+        if: steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.next }}
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --generate-notes \
+            --target main
