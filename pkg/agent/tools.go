@@ -314,12 +314,12 @@ func (r *Runner) handleTCPConnect(_ context.Context, input json.RawMessage) (str
 		params.TimeoutMs = 10000
 	}
 
-	addr := fmt.Sprintf("%s:%d", params.Host, params.Port)
+	addr := net.JoinHostPort(params.Host, fmt.Sprintf("%d", params.Port))
 	timeout := time.Duration(params.TimeoutMs) * time.Millisecond
 
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
-		return fmt.Sprintf("CLOSED — %s:%d — %s", params.Host, params.Port, err), nil
+		return fmt.Sprintf("CLOSED — %s — %s", addr, err), nil
 	}
 	defer conn.Close()
 
