@@ -23,9 +23,9 @@ type KubernetesConfig struct {
 
 // KubernetesRuntime manages agent Deployments in Kubernetes.
 type KubernetesRuntime struct {
-	client    kubernetes.Interface
-	cfg       KubernetesConfig
-	logger    *slog.Logger
+	client kubernetes.Interface
+	cfg    KubernetesConfig
+	logger *slog.Logger
 }
 
 // NewKubernetesRuntime creates a runtime that manages K8s Deployments.

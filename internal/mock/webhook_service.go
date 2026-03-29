@@ -43,4 +43,3 @@ func (m *WebhookService) RotateSecret(ctx context.Context, id string) (*domain.W
 func (m *WebhookService) ListDeliveries(ctx context.Context, webhookID string) ([]*domain.WebhookDelivery, error) {
 	return m.ListDeliveriesFn(ctx, webhookID)
 }
-

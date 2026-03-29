@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	logKeyPrefix = "pillar:agent:%s:logs"
+	logKeyPrefix  = "pillar:agent:%s:logs"
 	maxLogEntries = 1000
 	logTTL        = 24 * time.Hour
 )
