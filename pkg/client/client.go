@@ -231,7 +231,7 @@ func (c *Client) Recv() (*pillarv1.ServerMessage, error) {
 func (c *Client) Close() error {
 	close(c.stopHeartbeat)
 	if c.stream != nil {
-		c.stream.CloseSend()
+		_ = c.stream.CloseSend()
 	}
 	return c.conn.Close()
 }

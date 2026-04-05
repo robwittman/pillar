@@ -75,7 +75,7 @@ func (p *Process) Stop() error {
 
 	if err := p.cmd.Process.Signal(os.Interrupt); err != nil {
 		// If interrupt fails, kill
-		p.cmd.Process.Kill()
+		_ = p.cmd.Process.Kill()
 	}
 
 	err := p.cmd.Wait()

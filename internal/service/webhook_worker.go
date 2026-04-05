@@ -95,7 +95,9 @@ func (w *WebhookWorker) deliver(ctx context.Context, delivery *domain.WebhookDel
 		delivery.Status = domain.DeliveryStatusFailed
 		now := time.Now()
 		delivery.LastAttemptAt = &now
-		w.deliveryRepo.Update(ctx, delivery)
+		if err := w.deliveryRepo.Update(ctx, delivery); err != nil {
+			w.logger.Warn("failed to update delivery", "delivery_id", delivery.ID, "error", err)
+		}
 		return
 	}
 

@@ -77,7 +77,7 @@ func (ew *EventWriter) Emit(event Event) {
 	if event.AgentID == "" {
 		event.AgentID = ew.agentID
 	}
-	ew.enc.Encode(event)
+	_ = ew.enc.Encode(event)
 }
 
 // NopEventWriter discards all events.

@@ -54,5 +54,10 @@ func (s *AgentStatusStore) SetOffline(ctx context.Context, agentID string) error
 }
 
 func (s *AgentStatusStore) ListOnline(ctx context.Context) ([]string, error) {
-	return s.client.ZRevRange(ctx, onlineSetKey, 0, -1).Result()
+	return s.client.ZRangeArgs(ctx, redis.ZRangeArgs{
+		Key:   onlineSetKey,
+		Start: 0,
+		Stop:  -1,
+		Rev:   true,
+	}).Result()
 }

@@ -56,9 +56,11 @@ func (s *AgentLogStore) Query(ctx context.Context, agentID string, sinceNano int
 		minScore = strconv.FormatInt(sinceNano, 10)
 	}
 
-	return s.client.ZRangeByScore(ctx, key, &redis.ZRangeBy{
-		Min:   minScore,
-		Max:   "+inf",
-		Count: int64(limit),
+	return s.client.ZRangeArgs(ctx, redis.ZRangeArgs{
+		Key:     key,
+		Start:   minScore,
+		Stop:    "+inf",
+		ByScore: true,
+		Count:   int64(limit),
 	}).Result()
 }

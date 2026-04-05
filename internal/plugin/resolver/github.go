@@ -185,7 +185,11 @@ func (g *GitHubSource) extractBinary(archive io.ReadCloser, binaryName string) (
 				return nil, err
 			}
 			gz.Close()
-			tmpFile.Seek(0, 0)
+			if _, err := tmpFile.Seek(0, 0); err != nil {
+				tmpFile.Close()
+				os.Remove(tmpFile.Name())
+				return nil, err
+			}
 			return &tempFileReadCloser{tmpFile}, nil
 		}
 	}

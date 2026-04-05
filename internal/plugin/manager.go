@@ -94,13 +94,13 @@ func (m *Manager) startPlugin(cfg config.PluginConfig) error {
 
 	// Wait for the plugin to start listening
 	if err := WaitForSocket(proc.SocketPath(), socketTimeout); err != nil {
-		proc.Stop()
+		_ = proc.Stop()
 		return err
 	}
 
 	client, err := NewClient(proc.SocketPath())
 	if err != nil {
-		proc.Stop()
+		_ = proc.Stop()
 		return err
 	}
 
@@ -111,7 +111,7 @@ func (m *Manager) startPlugin(cfg config.PluginConfig) error {
 	expandedConfig := expandEnvVars(cfg.Config)
 	if err := client.Configure(ctx, expandedConfig); err != nil {
 		client.Close()
-		proc.Stop()
+		_ = proc.Stop()
 		return err
 	}
 
