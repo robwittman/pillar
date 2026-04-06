@@ -7,7 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var serverURL string
+var (
+	serverURL string
+	apiToken  string
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "pillarctl",
@@ -20,6 +23,7 @@ func init() {
 		defaultServer = "http://localhost:8080"
 	}
 	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", defaultServer, "Pillar server URL (env: PILLAR_SERVER)")
+	rootCmd.PersistentFlags().StringVar(&apiToken, "token", os.Getenv("PILLAR_TOKEN"), "API token for authentication (env: PILLAR_TOKEN)")
 }
 
 func main() {
@@ -30,5 +34,5 @@ func main() {
 }
 
 func getClient() *APIClient {
-	return NewAPIClient(serverURL)
+	return NewAPIClient(serverURL, apiToken)
 }

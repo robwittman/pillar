@@ -69,6 +69,35 @@ http_addr: ":9999"
 	assert.Equal(t, ":7777", cfg.HTTPAddr)
 }
 
+func TestLoad_AuthConfig(t *testing.T) {
+	content := `
+auth:
+  enabled: true
+  session_secret: "test-secret"
+  session_ttl: "12h"
+  allow_signup: true
+  providers:
+    - type: local
+      name: local
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "pillar.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+
+	t.Setenv("PILLAR_CONFIG_FILE", configPath)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.True(t, cfg.Auth.Enabled, "Auth.Enabled should be true")
+	assert.Equal(t, "test-secret", cfg.Auth.SessionSecret)
+	assert.Equal(t, "12h", cfg.Auth.SessionTTL)
+	assert.True(t, cfg.Auth.AllowSignup)
+	require.Len(t, cfg.Auth.Providers, 1, "should have 1 provider")
+	assert.Equal(t, "local", cfg.Auth.Providers[0].Type)
+	assert.Equal(t, "local", cfg.Auth.Providers[0].Name)
+}
+
 func TestLoad_InvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "bad.yaml")

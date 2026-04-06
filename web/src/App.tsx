@@ -9,6 +9,7 @@ import SourceListPage from './pages/SourceListPage'
 import SourceDetailPage from './pages/SourceDetailPage'
 import TaskListPage from './pages/TaskListPage'
 import TaskDetailPage from './pages/TaskDetailPage'
+import SettingsPage from './pages/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
         <Route path="/sources/:id" element={<SourceDetailPage />} />
         <Route path="/tasks" element={<TaskListPage />} />
         <Route path="/tasks/:id" element={<TaskDetailPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>

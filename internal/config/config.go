@@ -20,6 +20,24 @@ type PluginSettings struct {
 	CacheDir string `yaml:"cache_dir" env:"PILLAR_PLUGIN_CACHE_DIR"`
 }
 
+type AuthProviderConfig struct {
+	Type         string   `yaml:"type"`          // "local", "oidc", "github"
+	Name         string   `yaml:"name"`          // unique display name
+	IssuerURL    string   `yaml:"issuer_url"`    // OIDC only
+	ClientID     string   `yaml:"client_id"`     // OIDC / GitHub
+	ClientSecret string   `yaml:"client_secret"` // OIDC / GitHub
+	Scopes       []string `yaml:"scopes"`        // OIDC / GitHub
+	RedirectURL  string   `yaml:"redirect_url"`  // override auto-detected callback URL
+}
+
+type AuthConfig struct {
+	Enabled       bool                 `env:"PILLAR_AUTH_ENABLED" envDefault:"false" yaml:"enabled"`
+	SessionSecret string               `env:"PILLAR_SESSION_SECRET" yaml:"session_secret"`
+	SessionTTL    string               `env:"PILLAR_SESSION_TTL" envDefault:"24h" yaml:"session_ttl"`
+	AllowSignup   bool                 `env:"PILLAR_AUTH_ALLOW_SIGNUP" envDefault:"false" yaml:"allow_signup"`
+	Providers     []AuthProviderConfig `yaml:"providers"`
+}
+
 type Config struct {
 	HTTPAddr    string `env:"PILLAR_HTTP_ADDR" envDefault:":8080" yaml:"http_addr"`
 	GRPCAddr    string `env:"PILLAR_GRPC_ADDR" envDefault:":9090" yaml:"grpc_addr"`
@@ -33,6 +51,7 @@ type Config struct {
 	AgentImage       string `env:"PILLAR_AGENT_IMAGE" envDefault:"pillar-agent:latest" yaml:"agent_image"`
 	GRPCExternalAddr string `env:"PILLAR_GRPC_EXTERNAL_ADDR" envDefault:"host.docker.internal:9090" yaml:"grpc_external_addr"`
 
+	Auth           AuthConfig     `yaml:"auth"`
 	PluginSettings PluginSettings `yaml:"plugin_settings"`
 	Plugins        []PluginConfig `yaml:"plugins"`
 }
@@ -47,6 +66,9 @@ func defaultConfig() *Config {
 		KubeNamespace:    "default",
 		AgentImage:       "pillar-agent:latest",
 		GRPCExternalAddr: "host.docker.internal:9090",
+		Auth: AuthConfig{
+			SessionTTL: "24h",
+		},
 	}
 }
 
@@ -113,5 +135,17 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v, ok := os.LookupEnv("PILLAR_PLUGIN_CACHE_DIR"); ok {
 		cfg.PluginSettings.CacheDir = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_AUTH_ENABLED"); ok {
+		cfg.Auth.Enabled, _ = strconv.ParseBool(v)
+	}
+	if v, ok := os.LookupEnv("PILLAR_SESSION_SECRET"); ok {
+		cfg.Auth.SessionSecret = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_SESSION_TTL"); ok {
+		cfg.Auth.SessionTTL = v
+	}
+	if v, ok := os.LookupEnv("PILLAR_AUTH_ALLOW_SIGNUP"); ok {
+		cfg.Auth.AllowSignup, _ = strconv.ParseBool(v)
 	}
 }

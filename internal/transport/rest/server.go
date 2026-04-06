@@ -10,24 +10,44 @@ import (
 	"github.com/robwittman/pillar/internal/service"
 )
 
-func NewServer(svc service.AgentService, configSvc service.ConfigService, webhookSvc service.WebhookService, attrSvc service.AttributeService, logSvc *service.LogService, sourceSvc service.SourceService, triggerSvc service.TriggerService, taskSvc service.TaskService, logger *slog.Logger) http.Handler {
+type ServerConfig struct {
+	AgentSvc   service.AgentService
+	ConfigSvc  service.ConfigService
+	WebhookSvc service.WebhookService
+	AttrSvc    service.AttributeService
+	LogSvc     *service.LogService
+	SourceSvc  service.SourceService
+	TriggerSvc service.TriggerService
+	TaskSvc    service.TaskService
+	AuthSvc    service.AuthService // nil when auth is disabled
+	Logger     *slog.Logger
+}
+
+func NewServer(cfg ServerConfig) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(slogMiddleware(logger))
+	r.Use(slogMiddleware(cfg.Logger))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	h := NewHandlers(svc, logger)
-	ch := NewConfigHandlers(configSvc, logger)
-	wh := NewWebhookHandlers(webhookSvc, logger)
-	ah := NewAttributeHandlers(attrSvc, logger)
-	lh := NewLogHandlers(logSvc, logger)
-	sh := NewSourceHandlers(sourceSvc, logger)
-	trh := NewTriggerHandlers(triggerSvc, logger)
-	tkh := NewTaskHandlers(taskSvc, logger)
-	RegisterRoutes(r, h, ch, wh, ah, lh, sh, trh, tkh)
+	h := NewHandlers(cfg.AgentSvc, cfg.Logger)
+	ch := NewConfigHandlers(cfg.ConfigSvc, cfg.Logger)
+	wh := NewWebhookHandlers(cfg.WebhookSvc, cfg.Logger)
+	ah := NewAttributeHandlers(cfg.AttrSvc, cfg.Logger)
+	lh := NewLogHandlers(cfg.LogSvc, cfg.Logger)
+	sh := NewSourceHandlers(cfg.SourceSvc, cfg.Logger)
+	trh := NewTriggerHandlers(cfg.TriggerSvc, cfg.Logger)
+	tkh := NewTaskHandlers(cfg.TaskSvc, cfg.Logger)
+
+	var authH *AuthHandlers
+	authEnabled := cfg.AuthSvc != nil
+	if authEnabled {
+		authH = NewAuthHandlers(cfg.AuthSvc, cfg.Logger)
+	}
+
+	RegisterRoutes(r, h, ch, wh, ah, lh, sh, trh, tkh, authH, cfg.AuthSvc, authEnabled)
 
 	return r
 }

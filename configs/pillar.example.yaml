@@ -7,6 +7,15 @@ log_level: "debug"
 plugin_settings:
   cache_dir: ~/.pillar/plugins
 
+auth:
+  enabled: true
+  session_secret: "qpXpuvo5lUXM3F6ijQc+2OoOJS8yRQAnFoXwHZtYmX0="
+  session_ttl: "24h"
+  allow_signup: true
+  providers:
+    - type: local
+      name: local
+
 plugins:
 #  - name: keycloak
 #    path: ./bin/example-plugin-keycloak

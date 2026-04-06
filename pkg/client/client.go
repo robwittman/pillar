@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pillarv1 "github.com/robwittman/pillar/gen/proto/pillar/v1"
@@ -18,12 +19,23 @@ import (
 // DirectiveHandler is called when the server sends a directive to the agent.
 type DirectiveHandler func(directiveType, payload string)
 
+// ClientOption configures a Client.
+type ClientOption func(*Client)
+
+// WithToken sets the Bearer token used for gRPC authentication.
+func WithToken(token string) ClientOption {
+	return func(c *Client) {
+		c.token = token
+	}
+}
+
 type Client struct {
 	conn   *grpc.ClientConn
 	stream pillarv1.AgentStreamService_AgentStreamClient
 	logger *slog.Logger
 
 	agentID           string
+	token             string
 	heartbeatInterval time.Duration
 	stopHeartbeat     chan struct{}
 	config            *pillarv1.AgentConfig
@@ -34,21 +46,30 @@ type Client struct {
 	onDirective DirectiveHandler
 }
 
-func New(addr, agentID string, logger *slog.Logger) (*Client, error) {
+func New(addr, agentID string, logger *slog.Logger, opts ...ClientOption) (*Client, error) {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("connecting to pillar: %w", err)
 	}
 
-	return &Client{
+	c := &Client{
 		conn:          conn,
 		agentID:       agentID,
 		logger:        logger,
 		stopHeartbeat: make(chan struct{}),
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
 }
 
 func (c *Client) Connect(ctx context.Context, capabilities map[string]string) error {
+	// Attach Bearer token as gRPC metadata if configured.
+	if c.token != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+c.token)
+	}
+
 	stub := pillarv1.NewAgentStreamServiceClient(c.conn)
 	stream, err := stub.AgentStream(ctx)
 	if err != nil {

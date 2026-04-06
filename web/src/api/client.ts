@@ -10,6 +10,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const opts: RequestInit = {
     method,
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
   }
   if (body !== undefined) {
     opts.body = JSON.stringify(body)
@@ -18,6 +19,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const res = await fetch(path, opts)
 
   if (!res.ok) {
+    // On 401 from API routes, reload to trigger auth check
+    if (res.status === 401 && path.startsWith('/api/')) {
+      window.location.reload()
+      return undefined as T
+    }
+
     let msg = `HTTP ${res.status}`
     try {
       const err = await res.json()

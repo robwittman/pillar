@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -10,9 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/robwittman/pillar/internal/auth"
 	"github.com/robwittman/pillar/internal/config"
 	"github.com/robwittman/pillar/internal/plugin"
 	"github.com/robwittman/pillar/internal/plugin/resolver"
@@ -145,8 +148,65 @@ func main() {
 	worker.Start(ctx)
 	defer worker.Stop()
 
+	// Auth (optional)
+	var authSvc service.AuthService
+	if cfg.Auth.Enabled {
+		userRepo := pgstore.NewUserRepository(pool)
+		saRepo := pgstore.NewServiceAccountRepository(pool)
+		tokenRepo := pgstore.NewAPITokenRepository(pool)
+		sessionStore := redisstore.NewSessionStore(redisClient)
+
+		providerRegistry, err := auth.NewProviderRegistry(ctx, cfg.Auth.Providers, userRepo)
+		if err != nil {
+			logger.Error("failed to initialize auth providers", "error", err)
+			os.Exit(1)
+		}
+
+		sessionTTL := 24 * time.Hour
+		if parsed, err := time.ParseDuration(cfg.Auth.SessionTTL); err == nil {
+			sessionTTL = parsed
+		}
+
+		authSvc = service.NewAuthService(
+			userRepo, saRepo, tokenRepo, sessionStore,
+			providerRegistry, sessionTTL, cfg.Auth.AllowSignup, logger,
+		)
+		logger.Info("authentication enabled", "providers", len(cfg.Auth.Providers))
+
+		// Bootstrap admin user if local provider is configured and no users exist.
+		if providerRegistry.HasLocal() {
+			adminEmail := os.Getenv("PILLAR_ADMIN_EMAIL")
+			adminPassword := os.Getenv("PILLAR_ADMIN_PASSWORD")
+			result, err := auth.Bootstrap(ctx, userRepo, adminEmail, adminPassword, logger)
+			if err != nil {
+				logger.Error("failed to bootstrap admin user", "error", err)
+				os.Exit(1)
+			}
+			if result.Created {
+				logger.Info("bootstrap: admin user created", "email", result.Email)
+				if result.Password != "" {
+					fmt.Fprintf(os.Stderr, "\n=== INITIAL ADMIN CREDENTIALS ===\n")
+					fmt.Fprintf(os.Stderr, "Email:    %s\n", result.Email)
+					fmt.Fprintf(os.Stderr, "Password: %s\n", result.Password)
+					fmt.Fprintf(os.Stderr, "=================================\n\n")
+				}
+			}
+		}
+	}
+
 	// HTTP server
-	httpHandler := rest.NewServer(agentSvc, configSvc, webhookSvc, attrSvc, logSvc, sourceSvc, triggerSvc, taskSvc, logger)
+	httpHandler := rest.NewServer(rest.ServerConfig{
+		AgentSvc:   agentSvc,
+		ConfigSvc:  configSvc,
+		WebhookSvc: webhookSvc,
+		AttrSvc:    attrSvc,
+		LogSvc:     logSvc,
+		SourceSvc:  sourceSvc,
+		TriggerSvc: triggerSvc,
+		TaskSvc:    taskSvc,
+		AuthSvc:    authSvc,
+		Logger:     logger,
+	})
 
 	// SPA file server from embedded assets
 	distFS, _ := fs.Sub(web.Assets, "dist")
@@ -171,6 +231,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", httpHandler)
+	mux.Handle("/auth/", httpHandler)
 	mux.Handle("/health", httpHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.Handle("/", spaHandler)
@@ -181,7 +242,7 @@ func main() {
 	}
 
 	// gRPC server
-	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, logSvc, taskSvc, streamMgr, logger)
+	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, logSvc, taskSvc, streamMgr, logger, authSvc)
 
 	// Start servers
 	errCh := make(chan error, 2)
