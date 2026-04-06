@@ -179,5 +179,5 @@ func runTask(ctx context.Context, cfg *pillarv1.AgentConfig, attrs map[string][]
 	fmt.Println("\n--- Agent Result ---")
 	fmt.Println(result)
 	fmt.Println("--- End Result ---")
-	c.SendEvent("task.completed", result)
+	_ = c.SendEvent("task.completed", result)
 }
