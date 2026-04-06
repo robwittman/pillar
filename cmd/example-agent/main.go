@@ -18,6 +18,7 @@ import (
 func main() {
 	addr := flag.String("addr", "localhost:9090", "pillar gRPC address")
 	agentID := flag.String("agent-id", "", "agent ID (required)")
+	token := flag.String("token", os.Getenv("PILLAR_TOKEN"), "API token for authentication")
 	task := flag.String("task", "", "one-shot task to run (if empty, waits for directives)")
 	streamJSON := flag.Bool("stream-json", false, "emit LLM events as NDJSON to stderr")
 	flag.Parse()
@@ -29,7 +30,11 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	c, err := client.New(*addr, *agentID, logger)
+	var clientOpts []client.ClientOption
+	if *token != "" {
+		clientOpts = append(clientOpts, client.WithToken(*token))
+	}
+	c, err := client.New(*addr, *agentID, logger, clientOpts...)
 	if err != nil {
 		logger.Error("failed to create client", "error", err)
 		os.Exit(1)

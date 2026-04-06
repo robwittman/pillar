@@ -11,8 +11,16 @@ import (
 	"github.com/robwittman/pillar/internal/service"
 )
 
-func NewServer(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, taskSvc service.TaskService, streams *StreamManager, logger *slog.Logger) *grpc.Server {
-	s := grpc.NewServer()
+// NewServer creates a gRPC server. When authSvc is non-nil, the auth
+// stream interceptor is installed so that agents must present a valid
+// Bearer token in metadata.
+func NewServer(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, taskSvc service.TaskService, streams *StreamManager, logger *slog.Logger, authSvc service.AuthService) *grpc.Server {
+	var opts []grpc.ServerOption
+	if authSvc != nil {
+		opts = append(opts, grpc.StreamInterceptor(AuthStreamInterceptor(authSvc)))
+	}
+
+	s := grpc.NewServer(opts...)
 
 	var streamService *AgentStreamService
 	if streams != nil {

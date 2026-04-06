@@ -10,12 +10,14 @@ import (
 
 type APIClient struct {
 	BaseURL    string
+	Token      string
 	HTTPClient *http.Client
 }
 
-func NewAPIClient(baseURL string) *APIClient {
+func NewAPIClient(baseURL, token string) *APIClient {
 	return &APIClient{
 		BaseURL:    baseURL,
+		Token:      token,
 		HTTPClient: &http.Client{},
 	}
 }
@@ -53,6 +55,9 @@ func (c *APIClient) do(method, path string, body any) ([]byte, int, error) {
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 
 	resp, err := c.HTTPClient.Do(req)

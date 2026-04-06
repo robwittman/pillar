@@ -1,11 +1,37 @@
 package rest
 
-import "github.com/go-chi/chi/v5"
+import (
+	"github.com/go-chi/chi/v5"
+	"github.com/robwittman/pillar/internal/service"
+)
 
-func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHandlers, ah *AttributeHandlers, lh *LogHandlers, sh *SourceHandlers, trh *TriggerHandlers, tkh *TaskHandlers) {
+func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHandlers, ah *AttributeHandlers, lh *LogHandlers, sh *SourceHandlers, trh *TriggerHandlers, tkh *TaskHandlers, authH *AuthHandlers, authSvc service.AuthService, authEnabled bool) {
 	r.Get("/health", h.Health)
 
+	// Auth endpoints (no auth required).
+	if authEnabled && authH != nil {
+		r.Route("/auth", func(r chi.Router) {
+			r.Get("/providers", authH.ListProviders)
+			r.Post("/login", authH.Login)
+			r.Post("/register", authH.Register)
+			r.Post("/logout", authH.Logout)
+			r.Get("/oauth/{provider}", authH.OAuthRedirect)
+			r.Get("/oauth/{provider}/callback", authH.OAuthCallback)
+
+			// /auth/me requires auth
+			r.Group(func(r chi.Router) {
+				r.Use(Authenticator(authSvc))
+				r.Get("/me", authH.Me)
+			})
+		})
+	}
+
 	r.Route("/api/v1", func(r chi.Router) {
+		// Conditionally apply auth middleware.
+		if authEnabled && authSvc != nil {
+			r.Use(Authenticator(authSvc))
+		}
+
 		r.Route("/agents", func(r chi.Router) {
 			r.Post("/", h.CreateAgent)
 			r.Get("/", h.ListAgents)
@@ -82,5 +108,20 @@ func RegisterRoutes(r chi.Router, h *Handlers, ch *ConfigHandlers, wh *WebhookHa
 				r.Get("/", tkh.GetTask)
 			})
 		})
+
+		// Auth management routes (require auth).
+		if authEnabled && authH != nil {
+			r.Route("/auth/tokens", func(r chi.Router) {
+				r.Post("/", authH.CreateToken)
+				r.Get("/", authH.ListTokens)
+				r.Delete("/{tokenID}", authH.RevokeToken)
+			})
+			r.Route("/auth/service-accounts", func(r chi.Router) {
+				r.Post("/", authH.CreateServiceAccount)
+				r.Get("/", authH.ListServiceAccounts)
+				r.Delete("/{id}", authH.DeleteServiceAccount)
+				r.Post("/{id}/rotate-secret", authH.RotateServiceAccountSecret)
+			})
+		}
 	})
 }
