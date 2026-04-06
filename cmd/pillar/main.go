@@ -207,7 +207,7 @@ func main() {
 		logger.Error("server error", "error", err)
 	}
 
-	httpServer.Shutdown(context.Background())
+	_ = httpServer.Shutdown(context.Background())
 	grpcServer.GracefulStop()
 	logger.Info("shutdown complete")
 }

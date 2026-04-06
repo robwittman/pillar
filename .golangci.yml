@@ -1,0 +1,25 @@
+run:
+  timeout: 5m
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (*github.com/spf13/cobra.Command).MarkFlagRequired
+      - (net/http.ResponseWriter).Write
+
+issues:
+  exclude-dirs:
+    - web/node_modules
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck

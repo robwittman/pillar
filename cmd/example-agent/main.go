@@ -161,17 +161,17 @@ func runTask(ctx context.Context, cfg *pillarv1.AgentConfig, attrs map[string][]
 	runner, err := agent.NewRunner(cfg, attrs, logger, opts...)
 	if err != nil {
 		logger.Error("failed to create runner", "error", err)
-		c.SendEvent("error", fmt.Sprintf("failed to create runner: %s", err))
+		_ = c.SendEvent("error", fmt.Sprintf("failed to create runner: %s", err))
 		return
 	}
 
 	logger.Info("starting agent task", "task_len", len(task))
-	c.SendEvent("task.started", task)
+	_ = c.SendEvent("task.started", task)
 
 	result, err := runner.Run(ctx, task)
 	if err != nil {
 		logger.Error("agent task failed", "error", err)
-		c.SendEvent("task.failed", err.Error())
+		_ = c.SendEvent("task.failed", err.Error())
 		return
 	}
 
@@ -179,5 +179,5 @@ func runTask(ctx context.Context, cfg *pillarv1.AgentConfig, attrs map[string][]
 	fmt.Println("\n--- Agent Result ---")
 	fmt.Println(result)
 	fmt.Println("--- End Result ---")
-	c.SendEvent("task.completed", result)
+	_ = c.SendEvent("task.completed", result)
 }

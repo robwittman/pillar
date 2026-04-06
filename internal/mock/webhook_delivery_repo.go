@@ -7,9 +7,9 @@ import (
 )
 
 type WebhookDeliveryRepository struct {
-	CreateFn      func(ctx context.Context, delivery *domain.WebhookDelivery) error
-	ListPendingFn func(ctx context.Context, limit int) ([]*domain.WebhookDelivery, error)
-	UpdateFn      func(ctx context.Context, delivery *domain.WebhookDelivery) error
+	CreateFn        func(ctx context.Context, delivery *domain.WebhookDelivery) error
+	ListPendingFn   func(ctx context.Context, limit int) ([]*domain.WebhookDelivery, error)
+	UpdateFn        func(ctx context.Context, delivery *domain.WebhookDelivery) error
 	ListByWebhookFn func(ctx context.Context, webhookID string) ([]*domain.WebhookDelivery, error)
 }
 

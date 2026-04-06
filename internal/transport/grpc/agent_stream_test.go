@@ -90,12 +90,12 @@ func (m *mockAgentStream) Send(msg *pillarv1.ServerMessage) error {
 	return nil
 }
 
-func (m *mockAgentStream) Context() context.Context            { return m.ctx }
-func (m *mockAgentStream) SetHeader(metadata.MD) error         { return nil }
-func (m *mockAgentStream) SendHeader(metadata.MD) error        { return nil }
-func (m *mockAgentStream) SetTrailer(metadata.MD)              {}
-func (m *mockAgentStream) SendMsg(interface{}) error           { return nil }
-func (m *mockAgentStream) RecvMsg(interface{}) error           { return nil }
+func (m *mockAgentStream) Context() context.Context     { return m.ctx }
+func (m *mockAgentStream) SetHeader(metadata.MD) error  { return nil }
+func (m *mockAgentStream) SendHeader(metadata.MD) error { return nil }
+func (m *mockAgentStream) SetTrailer(metadata.MD)       {}
+func (m *mockAgentStream) SendMsg(interface{}) error    { return nil }
+func (m *mockAgentStream) RecvMsg(interface{}) error    { return nil }
 
 // --- StreamManager unit tests ---
 

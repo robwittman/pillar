@@ -70,9 +70,9 @@ func (h *WebhookHandlers) GetWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateWebhookRequest struct {
-	Description string                `json:"description"`
-	EventTypes  []string              `json:"event_types"`
-	Status      domain.WebhookStatus  `json:"status"`
+	Description string               `json:"description"`
+	EventTypes  []string             `json:"event_types"`
+	Status      domain.WebhookStatus `json:"status"`
 }
 
 func (h *WebhookHandlers) UpdateWebhook(w http.ResponseWriter, r *http.Request) {

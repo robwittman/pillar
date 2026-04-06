@@ -236,9 +236,9 @@ func (s *agentService) emitEvent(ctx context.Context, eventType string, data any
 }
 
 type AgentStatusInfo struct {
-	AgentID  string `json:"agent_id"`
-	Status   string `json:"status"`
-	Online   bool   `json:"online"`
+	AgentID string `json:"agent_id"`
+	Status  string `json:"status"`
+	Online  bool   `json:"online"`
 }
 
 func (s *agentService) Status(ctx context.Context, id string) (*AgentStatusInfo, error) {

@@ -8,10 +8,10 @@ import (
 type AgentStatus string
 
 const (
-	AgentStatusPending  AgentStatus = "pending"
-	AgentStatusRunning  AgentStatus = "running"
-	AgentStatusStopped  AgentStatus = "stopped"
-	AgentStatusError    AgentStatus = "error"
+	AgentStatusPending AgentStatus = "pending"
+	AgentStatusRunning AgentStatus = "running"
+	AgentStatusStopped AgentStatus = "stopped"
+	AgentStatusError   AgentStatus = "error"
 )
 
 type Agent struct {

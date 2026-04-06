@@ -10,14 +10,14 @@ import (
 type EventType string
 
 const (
-	EventRequestStart  EventType = "llm.request.start"
-	EventRequestEnd    EventType = "llm.request.end"
-	EventTextDelta     EventType = "llm.text"
-	EventToolUse       EventType = "llm.tool_use"
-	EventToolResult    EventType = "llm.tool_result"
-	EventError         EventType = "llm.error"
-	EventLoopStart     EventType = "llm.loop.start"
-	EventLoopEnd       EventType = "llm.loop.end"
+	EventRequestStart EventType = "llm.request.start"
+	EventRequestEnd   EventType = "llm.request.end"
+	EventTextDelta    EventType = "llm.text"
+	EventToolUse      EventType = "llm.tool_use"
+	EventToolResult   EventType = "llm.tool_result"
+	EventError        EventType = "llm.error"
+	EventLoopStart    EventType = "llm.loop.start"
+	EventLoopEnd      EventType = "llm.loop.end"
 )
 
 // Event is a structured LLM event emitted as JSON for log ingestion.
@@ -34,9 +34,9 @@ type Event struct {
 	ToolCount    int    `json:"tool_count,omitempty"`
 
 	// Response fields
-	StopReason    string `json:"stop_reason,omitempty"`
-	InputTokens   int64  `json:"input_tokens,omitempty"`
-	OutputTokens  int64  `json:"output_tokens,omitempty"`
+	StopReason   string `json:"stop_reason,omitempty"`
+	InputTokens  int64  `json:"input_tokens,omitempty"`
+	OutputTokens int64  `json:"output_tokens,omitempty"`
 
 	// Content fields
 	Text      string          `json:"text,omitempty"`
@@ -77,7 +77,7 @@ func (ew *EventWriter) Emit(event Event) {
 	if event.AgentID == "" {
 		event.AgentID = ew.agentID
 	}
-	ew.enc.Encode(event)
+	_ = ew.enc.Encode(event)
 }
 
 // NopEventWriter discards all events.

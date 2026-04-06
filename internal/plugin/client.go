@@ -19,12 +19,8 @@ type Client struct {
 
 // NewClient dials a plugin over a unix socket.
 func NewClient(socketPath string) (*Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, "unix://"+socketPath,
+	conn, err := grpc.NewClient("unix://"+socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to plugin at %s: %w", socketPath, err)

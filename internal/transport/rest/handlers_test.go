@@ -38,10 +38,14 @@ func setupRouter(svc service.AgentService) *chi.Mux {
 
 func noopWebhookService() *mock.WebhookService {
 	return &mock.WebhookService{
-		CreateFn:         func(ctx context.Context, url, description string, eventTypes []string) (*domain.Webhook, string, error) { return nil, "", nil },
-		GetFn:            func(ctx context.Context, id string) (*domain.Webhook, error) { return nil, nil },
-		ListFn:           func(ctx context.Context) ([]*domain.Webhook, error) { return nil, nil },
-		UpdateFn:         func(ctx context.Context, id string, description string, eventTypes []string, status domain.WebhookStatus) (*domain.Webhook, error) { return nil, nil },
+		CreateFn: func(ctx context.Context, url, description string, eventTypes []string) (*domain.Webhook, string, error) {
+			return nil, "", nil
+		},
+		GetFn:  func(ctx context.Context, id string) (*domain.Webhook, error) { return nil, nil },
+		ListFn: func(ctx context.Context) ([]*domain.Webhook, error) { return nil, nil },
+		UpdateFn: func(ctx context.Context, id string, description string, eventTypes []string, status domain.WebhookStatus) (*domain.Webhook, error) {
+			return nil, nil
+		},
 		DeleteFn:         func(ctx context.Context, id string) error { return nil },
 		RotateSecretFn:   func(ctx context.Context, id string) (*domain.Webhook, string, error) { return nil, "", nil },
 		ListDeliveriesFn: func(ctx context.Context, webhookID string) ([]*domain.WebhookDelivery, error) { return nil, nil },
@@ -50,7 +54,9 @@ func noopWebhookService() *mock.WebhookService {
 
 func noopAttributeService() *mock.AttributeService {
 	return &mock.AttributeService{
-		SetFn:    func(ctx context.Context, agentID, namespace string, value json.RawMessage) (*domain.AgentAttribute, error) { return nil, nil },
+		SetFn: func(ctx context.Context, agentID, namespace string, value json.RawMessage) (*domain.AgentAttribute, error) {
+			return nil, nil
+		},
 		GetFn:    func(ctx context.Context, agentID, namespace string) (*domain.AgentAttribute, error) { return nil, nil },
 		ListFn:   func(ctx context.Context, agentID string) ([]*domain.AgentAttribute, error) { return nil, nil },
 		DeleteFn: func(ctx context.Context, agentID, namespace string) error { return nil },

@@ -21,11 +21,11 @@ func NewTriggerHandlers(svc service.TriggerService, logger *slog.Logger) *Trigge
 }
 
 type createTriggerRequest struct {
-	SourceID     string              `json:"source_id"`
-	AgentID      string              `json:"agent_id"`
-	Name         string              `json:"name"`
+	SourceID     string               `json:"source_id"`
+	AgentID      string               `json:"agent_id"`
+	Name         string               `json:"name"`
 	Filter       domain.TriggerFilter `json:"filter"`
-	TaskTemplate string              `json:"task_template"`
+	TaskTemplate string               `json:"task_template"`
 }
 
 func (h *TriggerHandlers) CreateTrigger(w http.ResponseWriter, r *http.Request) {
@@ -76,10 +76,10 @@ func (h *TriggerHandlers) GetTrigger(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateTriggerRequest struct {
-	Name         string               `json:"name,omitempty"`
+	Name         string                `json:"name,omitempty"`
 	Filter       *domain.TriggerFilter `json:"filter,omitempty"`
-	TaskTemplate *string              `json:"task_template,omitempty"`
-	Enabled      *bool                `json:"enabled,omitempty"`
+	TaskTemplate *string               `json:"task_template,omitempty"`
+	Enabled      *bool                 `json:"enabled,omitempty"`
 }
 
 func (h *TriggerHandlers) UpdateTrigger(w http.ResponseWriter, r *http.Request) {

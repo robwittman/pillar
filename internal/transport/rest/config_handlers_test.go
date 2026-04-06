@@ -31,10 +31,14 @@ func setupConfigRouter(agentSvc service.AgentService, configSvc service.ConfigSe
 
 func noopAgentService() *mock.AgentService {
 	return &mock.AgentService{
-		CreateFn:    func(ctx context.Context, name string, metadata, labels map[string]string) (*domain.Agent, error) { return nil, nil },
-		GetFn:       func(ctx context.Context, id string) (*domain.Agent, error) { return nil, nil },
-		ListFn:      func(ctx context.Context) ([]*domain.Agent, error) { return nil, nil },
-		UpdateFn:    func(ctx context.Context, id, name string, metadata, labels map[string]string) (*domain.Agent, error) { return nil, nil },
+		CreateFn: func(ctx context.Context, name string, metadata, labels map[string]string) (*domain.Agent, error) {
+			return nil, nil
+		},
+		GetFn:  func(ctx context.Context, id string) (*domain.Agent, error) { return nil, nil },
+		ListFn: func(ctx context.Context) ([]*domain.Agent, error) { return nil, nil },
+		UpdateFn: func(ctx context.Context, id, name string, metadata, labels map[string]string) (*domain.Agent, error) {
+			return nil, nil
+		},
 		DeleteFn:    func(ctx context.Context, id string) error { return nil },
 		StartFn:     func(ctx context.Context, id string) error { return nil },
 		StopFn:      func(ctx context.Context, id string) error { return nil },
