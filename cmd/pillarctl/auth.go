@@ -29,6 +29,9 @@ func init() {
 	saCreateCmd.Flags().StringVar(&saName, "name", "", "Service account name (required)")
 	saCreateCmd.Flags().StringVar(&saDescription, "description", "", "Description")
 	saCreateCmd.MarkFlagRequired("name")
+
+	// Admin commands
+	authCmd.AddCommand(reconcileOrgsCmd)
 }
 
 var (
@@ -242,6 +245,36 @@ var saRotateCmd = &cobra.Command{
 		fmt.Printf("Secret rotated for: %s\n", resp.ClientID)
 		fmt.Printf("New Client Secret: %s\n", resp.ClientSecret)
 		fmt.Println("\nSave this secret — it will not be shown again.")
+		return nil
+	},
+}
+
+// --- Admin commands ---
+
+var reconcileOrgsCmd = &cobra.Command{
+	Use:   "reconcile-orgs",
+	Short: "Create missing personal organizations for all users",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client := getClient()
+		body, _, err := client.Post("/api/v1/admin/reconcile-orgs", nil)
+		if err != nil {
+			return err
+		}
+
+		var resp struct {
+			Checked int `json:"Checked"`
+			Created int `json:"Created"`
+			Errors  int `json:"Errors"`
+		}
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return err
+		}
+
+		fmt.Printf("Checked: %d users\n", resp.Checked)
+		fmt.Printf("Created: %d personal orgs\n", resp.Created)
+		if resp.Errors > 0 {
+			fmt.Printf("Errors:  %d (check server logs)\n", resp.Errors)
+		}
 		return nil
 	},
 }

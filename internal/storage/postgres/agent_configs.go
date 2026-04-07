@@ -38,15 +38,16 @@ func (r *AgentConfigRepository) Create(ctx context.Context, config *domain.Agent
 		return fmt.Errorf("marshaling escalation_rules: %w", err)
 	}
 
+	orgID := orgIDFromContext(ctx)
 	err = r.pool.QueryRow(ctx,
 		`INSERT INTO agent_configs (agent_id, model_provider, model_id, system_prompt, model_params,
 		 api_credential_ref, mcp_servers, tool_permissions, max_iterations, token_budget,
-		 task_timeout_seconds, escalation_rules)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		 task_timeout_seconds, escalation_rules, org_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		 RETURNING created_at, updated_at`,
 		config.AgentID, config.ModelProvider, config.ModelID, config.SystemPrompt, modelParams,
 		config.APICredentialRef, mcpServers, toolPerms, config.MaxIterations, config.TokenBudget,
-		config.TaskTimeoutSeconds, escalationRules,
+		config.TaskTimeoutSeconds, escalationRules, nullIfEmpty(orgID),
 	).Scan(&config.CreatedAt, &config.UpdatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -61,12 +62,19 @@ func (r *AgentConfigRepository) Get(ctx context.Context, agentID string) (*domai
 	config := &domain.AgentConfig{}
 	var modelParams, mcpServers, toolPerms, escalationRules []byte
 
-	err := r.pool.QueryRow(ctx,
-		`SELECT agent_id, model_provider, model_id, system_prompt, model_params,
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT agent_id, model_provider, model_id, system_prompt, model_params,
 		 api_credential_ref, mcp_servers, tool_permissions, max_iterations, token_budget,
 		 task_timeout_seconds, escalation_rules, created_at, updated_at
-		 FROM agent_configs WHERE agent_id = $1`, agentID,
-	).Scan(&config.AgentID, &config.ModelProvider, &config.ModelID, &config.SystemPrompt, &modelParams,
+		 FROM agent_configs WHERE agent_id = $1`
+	args := []any{agentID}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&config.AgentID, &config.ModelProvider, &config.ModelID, &config.SystemPrompt, &modelParams,
 		&config.APICredentialRef, &mcpServers, &toolPerms, &config.MaxIterations, &config.TokenBudget,
 		&config.TaskTimeoutSeconds, &escalationRules, &config.CreatedAt, &config.UpdatedAt)
 	if err != nil {
@@ -109,15 +117,20 @@ func (r *AgentConfigRepository) Update(ctx context.Context, config *domain.Agent
 		return fmt.Errorf("marshaling escalation_rules: %w", err)
 	}
 
-	tag, err := r.pool.Exec(ctx,
-		`UPDATE agent_configs SET model_provider = $2, model_id = $3, system_prompt = $4,
+	orgID := orgIDFromContext(ctx)
+	query := `UPDATE agent_configs SET model_provider = $2, model_id = $3, system_prompt = $4,
 		 model_params = $5, api_credential_ref = $6, mcp_servers = $7, tool_permissions = $8,
 		 max_iterations = $9, token_budget = $10, task_timeout_seconds = $11, escalation_rules = $12
-		 WHERE agent_id = $1`,
-		config.AgentID, config.ModelProvider, config.ModelID, config.SystemPrompt, modelParams,
+		 WHERE agent_id = $1`
+	args := []any{config.AgentID, config.ModelProvider, config.ModelID, config.SystemPrompt, modelParams,
 		config.APICredentialRef, mcpServers, toolPerms, config.MaxIterations, config.TokenBudget,
-		config.TaskTimeoutSeconds, escalationRules,
-	)
+		config.TaskTimeoutSeconds, escalationRules}
+	if orgID != "" {
+		query += ` AND org_id = $13`
+		args = append(args, orgID)
+	}
+
+	tag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("updating agent config: %w", err)
 	}
@@ -128,7 +141,15 @@ func (r *AgentConfigRepository) Update(ctx context.Context, config *domain.Agent
 }
 
 func (r *AgentConfigRepository) Delete(ctx context.Context, agentID string) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM agent_configs WHERE agent_id = $1`, agentID)
+	orgID := orgIDFromContext(ctx)
+	query := `DELETE FROM agent_configs WHERE agent_id = $1`
+	args := []any{agentID}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+
+	tag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("deleting agent config: %w", err)
 	}

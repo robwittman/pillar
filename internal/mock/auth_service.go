@@ -24,8 +24,9 @@ type AuthService struct {
 	ListServiceAccountsFn              func(ctx context.Context) ([]*domain.ServiceAccount, error)
 	DeleteServiceAccountFn             func(ctx context.Context, id string) error
 	RotateServiceAccountSecretFn       func(ctx context.Context, id string) (string, error)
-	ResolveAPITokenFn                  func(ctx context.Context, rawToken string) (*domain.Principal, error)
-	ResolveServiceAccountCredentialsFn func(ctx context.Context, clientID, clientSecret string) (*domain.Principal, error)
+	ReconcilePersonalOrgsFn            func(ctx context.Context) (*auth.ReconcileResult, error)
+	ResolveAPITokenFn                  func(ctx context.Context, rawToken string) (*domain.Principal, *domain.OrgContext, error)
+	ResolveServiceAccountCredentialsFn func(ctx context.Context, clientID, clientSecret string) (*domain.Principal, *domain.OrgContext, error)
 	ResolveSessionFn                   func(ctx context.Context, sessionID string) (*domain.Principal, error)
 }
 
@@ -89,11 +90,15 @@ func (m *AuthService) RotateServiceAccountSecret(ctx context.Context, id string)
 	return m.RotateServiceAccountSecretFn(ctx, id)
 }
 
-func (m *AuthService) ResolveAPIToken(ctx context.Context, rawToken string) (*domain.Principal, error) {
+func (m *AuthService) ReconcilePersonalOrgs(ctx context.Context) (*auth.ReconcileResult, error) {
+	return m.ReconcilePersonalOrgsFn(ctx)
+}
+
+func (m *AuthService) ResolveAPIToken(ctx context.Context, rawToken string) (*domain.Principal, *domain.OrgContext, error) {
 	return m.ResolveAPITokenFn(ctx, rawToken)
 }
 
-func (m *AuthService) ResolveServiceAccountCredentials(ctx context.Context, clientID, clientSecret string) (*domain.Principal, error) {
+func (m *AuthService) ResolveServiceAccountCredentials(ctx context.Context, clientID, clientSecret string) (*domain.Principal, *domain.OrgContext, error) {
 	return m.ResolveServiceAccountCredentialsFn(ctx, clientID, clientSecret)
 }
 

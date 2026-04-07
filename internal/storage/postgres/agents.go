@@ -29,11 +29,12 @@ func (r *AgentRepository) Create(ctx context.Context, agent *domain.Agent) error
 		return fmt.Errorf("marshaling labels: %w", err)
 	}
 
+	orgID := orgIDFromContext(ctx)
 	err = r.pool.QueryRow(ctx,
-		`INSERT INTO agents (id, name, status, metadata, labels)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO agents (id, name, status, metadata, labels, org_id)
+		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING created_at, updated_at`,
-		agent.ID, agent.Name, agent.Status, metadata, labels,
+		agent.ID, agent.Name, agent.Status, metadata, labels, nullIfEmpty(orgID),
 	).Scan(&agent.CreatedAt, &agent.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("inserting agent: %w", err)
@@ -45,10 +46,16 @@ func (r *AgentRepository) Get(ctx context.Context, id string) (*domain.Agent, er
 	agent := &domain.Agent{}
 	var metadata, labels []byte
 
-	err := r.pool.QueryRow(ctx,
-		`SELECT id, name, status, metadata, labels, created_at, updated_at
-		 FROM agents WHERE id = $1`, id,
-	).Scan(&agent.ID, &agent.Name, &agent.Status, &metadata, &labels, &agent.CreatedAt, &agent.UpdatedAt)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT id, name, status, metadata, labels, created_at, updated_at FROM agents WHERE id = $1`
+	args := []any{id}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&agent.ID, &agent.Name, &agent.Status, &metadata, &labels, &agent.CreatedAt, &agent.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrAgentNotFound
@@ -66,9 +73,16 @@ func (r *AgentRepository) Get(ctx context.Context, id string) (*domain.Agent, er
 }
 
 func (r *AgentRepository) List(ctx context.Context) ([]*domain.Agent, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, status, metadata, labels, created_at, updated_at
-		 FROM agents ORDER BY created_at DESC`)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT id, name, status, metadata, labels, created_at, updated_at FROM agents`
+	var args []any
+	if orgID != "" {
+		query += ` WHERE org_id = $1`
+		args = append(args, orgID)
+	}
+	query += ` ORDER BY created_at DESC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying agents: %w", err)
 	}
@@ -102,11 +116,15 @@ func (r *AgentRepository) Update(ctx context.Context, agent *domain.Agent) error
 		return fmt.Errorf("marshaling labels: %w", err)
 	}
 
-	tag, err := r.pool.Exec(ctx,
-		`UPDATE agents SET name = $2, status = $3, metadata = $4, labels = $5
-		 WHERE id = $1`,
-		agent.ID, agent.Name, agent.Status, metadata, labels,
-	)
+	orgID := orgIDFromContext(ctx)
+	query := `UPDATE agents SET name = $2, status = $3, metadata = $4, labels = $5 WHERE id = $1`
+	args := []any{agent.ID, agent.Name, agent.Status, metadata, labels}
+	if orgID != "" {
+		query += ` AND org_id = $6`
+		args = append(args, orgID)
+	}
+
+	tag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("updating agent: %w", err)
 	}
@@ -117,7 +135,15 @@ func (r *AgentRepository) Update(ctx context.Context, agent *domain.Agent) error
 }
 
 func (r *AgentRepository) Delete(ctx context.Context, id string) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM agents WHERE id = $1`, id)
+	orgID := orgIDFromContext(ctx)
+	query := `DELETE FROM agents WHERE id = $1`
+	args := []any{id}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+
+	tag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("deleting agent: %w", err)
 	}
@@ -128,10 +154,15 @@ func (r *AgentRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *AgentRepository) UpdateStatus(ctx context.Context, id string, status domain.AgentStatus) error {
-	tag, err := r.pool.Exec(ctx,
-		`UPDATE agents SET status = $2 WHERE id = $1`,
-		id, status,
-	)
+	orgID := orgIDFromContext(ctx)
+	query := `UPDATE agents SET status = $2 WHERE id = $1`
+	args := []any{id, status}
+	if orgID != "" {
+		query += ` AND org_id = $3`
+		args = append(args, orgID)
+	}
+
+	tag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("updating agent status: %w", err)
 	}
@@ -139,4 +170,12 @@ func (r *AgentRepository) UpdateStatus(ctx context.Context, id string, status do
 		return domain.ErrAgentNotFound
 	}
 	return nil
+}
+
+// nullIfEmpty returns nil for empty strings, allowing nullable org_id columns.
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }

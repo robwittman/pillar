@@ -6,10 +6,26 @@ class ApiError extends Error {
   }
 }
 
+// Active org ID is set by OrgProvider and included on API requests.
+let _activeOrgId: string | null = null
+
+export function setActiveOrgId(orgId: string | null) {
+  _activeOrgId = orgId
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  // Include org context on resource API calls.
+  if (_activeOrgId && path.startsWith('/api/')) {
+    headers['X-Org-ID'] = _activeOrgId
+  }
+
   const opts: RequestInit = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     credentials: 'same-origin',
   }
   if (body !== undefined) {

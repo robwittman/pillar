@@ -1,19 +1,296 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi, type APIToken, type ServiceAccount } from '../api/auth'
+import { orgsApi, type Membership, type Team } from '../api/organizations'
+import { useOrgContext } from '../hooks/useOrgContext'
+import { useAuth } from '../hooks/useAuth'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
 
 export default function SettingsPage() {
+  const [tab, setTab] = useState<'tokens' | 'service-accounts' | 'organization'>('tokens')
+  const { authEnabled } = useAuth()
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
-      <div className="space-y-8">
-        <APITokensSection />
-        <ServiceAccountsSection />
+
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="flex space-x-6">
+          {(['tokens', 'service-accounts', 'organization'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === t
+                  ? 'border-slate-800 text-slate-900'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t === 'tokens' ? 'API Tokens' : t === 'service-accounts' ? 'Service Accounts' : 'Organization'}
+            </button>
+          ))}
+        </nav>
       </div>
+
+      {tab === 'tokens' && <APITokensSection />}
+      {tab === 'service-accounts' && <ServiceAccountsSection />}
+      {tab === 'organization' && authEnabled && <OrganizationSection />}
     </div>
   )
 }
+
+// --- Organization Section ---
+
+function OrganizationSection() {
+  const { activeOrg } = useOrgContext()
+
+  if (!activeOrg) {
+    return <p className="text-sm text-gray-500">No organization selected.</p>
+  }
+
+  return (
+    <div className="space-y-8">
+      <OrgDetailsCard />
+      <MembersSection orgId={activeOrg.id} />
+      <TeamsSection orgId={activeOrg.id} />
+    </div>
+  )
+}
+
+function OrgDetailsCard() {
+  const { activeOrg } = useOrgContext()
+  if (!activeOrg) return null
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 mb-3">Details</h2>
+      <div className="bg-white border border-gray-200 rounded-md p-4 space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">Name</span>
+          <span className="text-gray-900">{activeOrg.name}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">Slug</span>
+          <span className="text-gray-900 font-mono">{activeOrg.slug}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">Type</span>
+          <span className="text-gray-900">{activeOrg.personal ? 'Personal' : 'Organization'}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">ID</span>
+          <span className="text-gray-900 font-mono text-xs">{activeOrg.id}</span>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MembersSection({ orgId }: { orgId: string }) {
+  const qc = useQueryClient()
+  const [userId, setUserId] = useState('')
+  const [role, setRole] = useState('member')
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
+  const { data: members = [] } = useQuery({
+    queryKey: ['organizations', orgId, 'members'],
+    queryFn: () => orgsApi.listMembers(orgId),
+  })
+
+  const addMutation = useMutation({
+    mutationFn: () => orgsApi.addMember(orgId, userId.trim(), role),
+    onSuccess: () => {
+      setUserId('')
+      qc.invalidateQueries({ queryKey: ['organizations', orgId, 'members'] })
+    },
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (uid: string) => orgsApi.removeMember(orgId, uid),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['organizations', orgId, 'members'] }),
+  })
+
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ uid, newRole }: { uid: string; newRole: string }) =>
+      orgsApi.updateMemberRole(orgId, uid, newRole),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['organizations', orgId, 'members'] }),
+  })
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (userId.trim()) addMutation.mutate()
+  }
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 mb-3">Members</h2>
+
+      <form onSubmit={handleAdd} className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={userId}
+          onChange={e => setUserId(e.target.value)}
+          placeholder="User ID"
+          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+          required
+        />
+        <select
+          value={role}
+          onChange={e => setRole(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+        >
+          <option value="owner">Owner</option>
+          <option value="admin">Admin</option>
+          <option value="member">Member</option>
+          <option value="viewer">Viewer</option>
+        </select>
+        <button
+          type="submit"
+          disabled={addMutation.isPending}
+          className="px-4 py-1.5 bg-slate-800 text-white text-sm rounded-md hover:bg-slate-700 disabled:opacity-50"
+        >
+          Add
+        </button>
+      </form>
+
+      <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+              <th className="px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {members.length === 0 && (
+              <tr><td colSpan={4} className="px-4 py-3 text-sm text-gray-500 text-center">No members</td></tr>
+            )}
+            {members.map((m: Membership) => (
+              <tr key={m.id}>
+                <td className="px-4 py-2 text-sm text-gray-900 font-mono">{m.user_id}</td>
+                <td className="px-4 py-2">
+                  <select
+                    value={m.role}
+                    onChange={e => updateRoleMutation.mutate({ uid: m.user_id, newRole: e.target.value })}
+                    className="text-sm border border-gray-200 rounded px-2 py-0.5"
+                  >
+                    <option value="owner">Owner</option>
+                    <option value="admin">Admin</option>
+                    <option value="member">Member</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </td>
+                <td className="px-4 py-2 text-sm text-gray-500">{new Date(m.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-2 text-right">
+                  <button onClick={() => setDeleteTarget(m.user_id)} className="text-sm text-red-600 hover:underline">Remove</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Remove Member"
+        message="This user will lose access to all resources in this organization."
+        onConfirm={() => { if (deleteTarget) removeMutation.mutate(deleteTarget); setDeleteTarget(null) }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </section>
+  )
+}
+
+function TeamsSection({ orgId }: { orgId: string }) {
+  const qc = useQueryClient()
+  const [name, setName] = useState('')
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  const { data: teams = [] } = useQuery({
+    queryKey: ['organizations', orgId, 'teams'],
+    queryFn: () => orgsApi.listTeams(orgId),
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (n: string) => orgsApi.createTeam(orgId, n),
+    onSuccess: () => {
+      setName('')
+      qc.invalidateQueries({ queryKey: ['organizations', orgId, 'teams'] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (teamId: string) => orgsApi.deleteTeam(orgId, teamId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['organizations', orgId, 'teams'] }),
+  })
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (name.trim()) createMutation.mutate(name.trim())
+  }
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 mb-3">Teams</h2>
+
+      <form onSubmit={handleCreate} className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Team name"
+          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+          required
+        />
+        <button
+          type="submit"
+          disabled={createMutation.isPending}
+          className="px-4 py-1.5 bg-slate-800 text-white text-sm rounded-md hover:bg-slate-700 disabled:opacity-50"
+        >
+          Create
+        </button>
+      </form>
+
+      <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+              <th className="px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {teams.length === 0 && (
+              <tr><td colSpan={3} className="px-4 py-3 text-sm text-gray-500 text-center">No teams</td></tr>
+            )}
+            {teams.map((t: Team) => (
+              <tr key={t.id}>
+                <td className="px-4 py-2 text-sm text-gray-900">{t.name}</td>
+                <td className="px-4 py-2 text-sm text-gray-500">{new Date(t.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-2 text-right">
+                  <button onClick={() => setDeleteId(t.id)} className="text-sm text-red-600 hover:underline">Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="Delete Team"
+        message="This will permanently delete the team and remove all members."
+        onConfirm={() => { if (deleteId) deleteMutation.mutate(deleteId); setDeleteId(null) }}
+        onCancel={() => setDeleteId(null)}
+      />
+    </section>
+  )
+}
+
+// --- API Tokens Section ---
 
 function APITokensSection() {
   const qc = useQueryClient()
@@ -113,6 +390,8 @@ function APITokensSection() {
     </section>
   )
 }
+
+// --- Service Accounts Section ---
 
 function ServiceAccountsSection() {
   const qc = useQueryClient()

@@ -18,11 +18,13 @@ func NewWebhookDeliveryRepository(pool *pgxpool.Pool) *WebhookDeliveryRepository
 }
 
 func (r *WebhookDeliveryRepository) Create(ctx context.Context, delivery *domain.WebhookDelivery) error {
+	orgID := orgIDFromContext(ctx)
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO webhook_deliveries (id, webhook_id, event_type, payload, status, next_retry_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO webhook_deliveries (id, webhook_id, event_type, payload, status, next_retry_at, org_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING created_at`,
-		delivery.ID, delivery.WebhookID, delivery.EventType, delivery.Payload, delivery.Status, delivery.NextRetryAt,
+		delivery.ID, delivery.WebhookID, delivery.EventType, delivery.Payload,
+		delivery.Status, delivery.NextRetryAt, nullIfEmpty(orgID),
 	).Scan(&delivery.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("inserting webhook delivery: %w", err)
@@ -31,6 +33,7 @@ func (r *WebhookDeliveryRepository) Create(ctx context.Context, delivery *domain
 }
 
 func (r *WebhookDeliveryRepository) ListPending(ctx context.Context, limit int) ([]*domain.WebhookDelivery, error) {
+	// ListPending is called by the background worker without org context — it processes all pending deliveries.
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, webhook_id, event_type, payload, response_code, response_body,
 		        status, attempts, last_attempt_at, next_retry_at, created_at
