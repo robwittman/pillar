@@ -8,25 +8,40 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	pillarv1 "github.com/robwittman/pillar/gen/proto/pillar/v1"
+	"github.com/robwittman/pillar/internal/domain"
 	"github.com/robwittman/pillar/internal/service"
 )
 
-// NewServer creates a gRPC server. When authSvc is non-nil, the auth
+// GRPCServerConfig holds dependencies for creating a gRPC server.
+type GRPCServerConfig struct {
+	AgentSvc       service.AgentService
+	ConfigSvc      service.ConfigService
+	AttrSvc        service.AttributeService
+	LogSvc         *service.LogService
+	TaskSvc        service.TaskService
+	Streams        *StreamManager
+	Logger         *slog.Logger
+	AuthSvc        service.AuthService
+	OrgRepo        domain.OrganizationRepository
+	MembershipRepo domain.MembershipRepository
+}
+
+// NewServer creates a gRPC server. When AuthSvc is non-nil, the auth
 // stream interceptor is installed so that agents must present a valid
 // Bearer token in metadata.
-func NewServer(svc service.AgentService, configSvc service.ConfigService, attrSvc service.AttributeService, logSvc *service.LogService, taskSvc service.TaskService, streams *StreamManager, logger *slog.Logger, authSvc service.AuthService) *grpc.Server {
+func NewServer(cfg GRPCServerConfig) *grpc.Server {
 	var opts []grpc.ServerOption
-	if authSvc != nil {
-		opts = append(opts, grpc.StreamInterceptor(AuthStreamInterceptor(authSvc)))
+	if cfg.AuthSvc != nil {
+		opts = append(opts, grpc.StreamInterceptor(AuthStreamInterceptor(cfg.AuthSvc, cfg.OrgRepo, cfg.MembershipRepo)))
 	}
 
 	s := grpc.NewServer(opts...)
 
 	var streamService *AgentStreamService
-	if streams != nil {
-		streamService = NewAgentStreamServiceWithStreams(svc, configSvc, attrSvc, logSvc, taskSvc, streams, logger)
+	if cfg.Streams != nil {
+		streamService = NewAgentStreamServiceWithStreams(cfg.AgentSvc, cfg.ConfigSvc, cfg.AttrSvc, cfg.LogSvc, cfg.TaskSvc, cfg.Streams, cfg.Logger)
 	} else {
-		streamService = NewAgentStreamService(svc, configSvc, attrSvc, logSvc, taskSvc, logger)
+		streamService = NewAgentStreamService(cfg.AgentSvc, cfg.ConfigSvc, cfg.AttrSvc, cfg.LogSvc, cfg.TaskSvc, cfg.Logger)
 	}
 	pillarv1.RegisterAgentStreamServiceServer(s, streamService)
 	reflection.Register(s)

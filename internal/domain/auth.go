@@ -54,6 +54,7 @@ type ServiceAccount struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	SecretHash  string    `json:"-"`
+	OrgID       string    `json:"org_id,omitempty"`
 	Roles       []string  `json:"roles"`
 	Disabled    bool      `json:"disabled"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -76,6 +77,7 @@ type APIToken struct {
 	TokenHash  string        `json:"-"`
 	OwnerID    string        `json:"owner_id"`
 	OwnerType  PrincipalType `json:"owner_type"`
+	OrgID      string        `json:"org_id,omitempty"`
 	Scopes     []string      `json:"scopes"`
 	ExpiresAt  *time.Time    `json:"expires_at,omitempty"`
 	LastUsedAt *time.Time    `json:"last_used_at,omitempty"`

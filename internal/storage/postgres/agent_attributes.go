@@ -19,12 +19,13 @@ func NewAgentAttributeRepository(pool *pgxpool.Pool) *AgentAttributeRepository {
 }
 
 func (r *AgentAttributeRepository) Set(ctx context.Context, attr *domain.AgentAttribute) error {
+	orgID := orgIDFromContext(ctx)
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO agent_attributes (agent_id, namespace, value)
-		 VALUES ($1, $2, $3)
+		`INSERT INTO agent_attributes (agent_id, namespace, value, org_id)
+		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (agent_id, namespace) DO UPDATE SET value = EXCLUDED.value
 		 RETURNING created_at, updated_at`,
-		attr.AgentID, attr.Namespace, attr.Value,
+		attr.AgentID, attr.Namespace, attr.Value, nullIfEmpty(orgID),
 	).Scan(&attr.CreatedAt, &attr.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("upserting agent attribute: %w", err)
@@ -34,11 +35,17 @@ func (r *AgentAttributeRepository) Set(ctx context.Context, attr *domain.AgentAt
 
 func (r *AgentAttributeRepository) Get(ctx context.Context, agentID, namespace string) (*domain.AgentAttribute, error) {
 	attr := &domain.AgentAttribute{}
-	err := r.pool.QueryRow(ctx,
-		`SELECT agent_id, namespace, value, created_at, updated_at
-		 FROM agent_attributes WHERE agent_id = $1 AND namespace = $2`,
-		agentID, namespace,
-	).Scan(&attr.AgentID, &attr.Namespace, &attr.Value, &attr.CreatedAt, &attr.UpdatedAt)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT agent_id, namespace, value, created_at, updated_at
+		 FROM agent_attributes WHERE agent_id = $1 AND namespace = $2`
+	args := []any{agentID, namespace}
+	if orgID != "" {
+		query += ` AND org_id = $3`
+		args = append(args, orgID)
+	}
+
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&attr.AgentID, &attr.Namespace, &attr.Value, &attr.CreatedAt, &attr.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrAttributeNotFound

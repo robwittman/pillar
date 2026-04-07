@@ -19,10 +19,11 @@ func NewSecretStore(pool *pgxpool.Pool) *SecretStore {
 }
 
 func (s *SecretStore) Put(ctx context.Context, name string, value string) error {
+	orgID := orgIDFromContext(ctx)
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO agent_secrets (name, value) VALUES ($1, $2)
+		`INSERT INTO agent_secrets (name, value, org_id) VALUES ($1, $2, $3)
 		 ON CONFLICT (name) DO UPDATE SET value = $2`,
-		name, value,
+		name, value, nullIfEmpty(orgID),
 	)
 	if err != nil {
 		return fmt.Errorf("storing secret: %w", err)
@@ -32,9 +33,15 @@ func (s *SecretStore) Put(ctx context.Context, name string, value string) error 
 
 func (s *SecretStore) Get(ctx context.Context, name string) (string, error) {
 	var value string
-	err := s.pool.QueryRow(ctx,
-		`SELECT value FROM agent_secrets WHERE name = $1`, name,
-	).Scan(&value)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT value FROM agent_secrets WHERE name = $1`
+	args := []any{name}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+
+	err := s.pool.QueryRow(ctx, query, args...).Scan(&value)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", domain.ErrSecretNotFound

@@ -32,4 +32,12 @@ var (
 	ErrSessionNotFound        = errors.New("session not found")
 	ErrSessionExpired         = errors.New("session expired")
 	ErrAuthRequired           = errors.New("authentication required")
+
+	ErrOrgNotFound        = errors.New("organization not found")
+	ErrOrgAlreadyExists   = errors.New("organization already exists")
+	ErrMembershipNotFound = errors.New("membership not found")
+	ErrMembershipExists   = errors.New("membership already exists")
+	ErrTeamNotFound       = errors.New("team not found")
+	ErrNotAuthorized      = errors.New("not authorized")
+	ErrOrgContextRequired = errors.New("organization context required")
 )

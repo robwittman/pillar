@@ -25,7 +25,7 @@ func setupConfigRouter(agentSvc service.AgentService, configSvc service.ConfigSe
 	ch := NewConfigHandlers(configSvc, logger)
 	wh := NewWebhookHandlers(noopWebhookService(), logger)
 	ah := NewAttributeHandlers(noopAttributeService(), logger)
-	RegisterRoutes(r, h, ch, wh, ah, nil, nil, nil, nil, nil, nil, false)
+	RegisterRoutes(r, h, ch, wh, ah, nil, nil, nil, nil, nil, nil, nil, false, nil, nil)
 	return r
 }
 

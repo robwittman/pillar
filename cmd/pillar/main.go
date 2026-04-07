@@ -150,11 +150,16 @@ func main() {
 
 	// Auth (optional)
 	var authSvc service.AuthService
+	var orgSvc service.OrgService
+	var orgRepo *pgstore.OrganizationRepository
+	var membershipRepo *pgstore.MembershipRepository
 	if cfg.Auth.Enabled {
 		userRepo := pgstore.NewUserRepository(pool)
 		saRepo := pgstore.NewServiceAccountRepository(pool)
 		tokenRepo := pgstore.NewAPITokenRepository(pool)
 		sessionStore := redisstore.NewSessionStore(redisClient)
+		orgRepo = pgstore.NewOrganizationRepository(pool)
+		membershipRepo = pgstore.NewMembershipRepository(pool)
 
 		providerRegistry, err := auth.NewProviderRegistry(ctx, cfg.Auth.Providers, userRepo)
 		if err != nil {
@@ -169,15 +174,19 @@ func main() {
 
 		authSvc = service.NewAuthService(
 			userRepo, saRepo, tokenRepo, sessionStore,
+			orgRepo, membershipRepo,
 			providerRegistry, sessionTTL, cfg.Auth.AllowSignup, logger,
 		)
+		teamRepo := pgstore.NewTeamRepository(pool)
+		teamMemberRepo := pgstore.NewTeamMembershipRepository(pool)
+		orgSvc = service.NewOrgService(orgRepo, membershipRepo, teamRepo, teamMemberRepo, logger)
 		logger.Info("authentication enabled", "providers", len(cfg.Auth.Providers))
 
 		// Bootstrap admin user if local provider is configured and no users exist.
 		if providerRegistry.HasLocal() {
 			adminEmail := os.Getenv("PILLAR_ADMIN_EMAIL")
 			adminPassword := os.Getenv("PILLAR_ADMIN_PASSWORD")
-			result, err := auth.Bootstrap(ctx, userRepo, adminEmail, adminPassword, logger)
+			result, err := auth.Bootstrap(ctx, userRepo, orgRepo, membershipRepo, adminEmail, adminPassword, logger)
 			if err != nil {
 				logger.Error("failed to bootstrap admin user", "error", err)
 				os.Exit(1)
@@ -196,16 +205,19 @@ func main() {
 
 	// HTTP server
 	httpHandler := rest.NewServer(rest.ServerConfig{
-		AgentSvc:   agentSvc,
-		ConfigSvc:  configSvc,
-		WebhookSvc: webhookSvc,
-		AttrSvc:    attrSvc,
-		LogSvc:     logSvc,
-		SourceSvc:  sourceSvc,
-		TriggerSvc: triggerSvc,
-		TaskSvc:    taskSvc,
-		AuthSvc:    authSvc,
-		Logger:     logger,
+		AgentSvc:       agentSvc,
+		ConfigSvc:      configSvc,
+		WebhookSvc:     webhookSvc,
+		AttrSvc:        attrSvc,
+		LogSvc:         logSvc,
+		SourceSvc:      sourceSvc,
+		TriggerSvc:     triggerSvc,
+		TaskSvc:        taskSvc,
+		AuthSvc:        authSvc,
+		OrgSvc:         orgSvc,
+		Logger:         logger,
+		OrgRepo:        orgRepo,
+		MembershipRepo: membershipRepo,
 	})
 
 	// SPA file server from embedded assets
@@ -242,7 +254,18 @@ func main() {
 	}
 
 	// gRPC server
-	grpcServer := grpctransport.NewServer(agentSvc, configSvc, attrSvc, logSvc, taskSvc, streamMgr, logger, authSvc)
+	grpcServer := grpctransport.NewServer(grpctransport.GRPCServerConfig{
+		AgentSvc:       agentSvc,
+		ConfigSvc:      configSvc,
+		AttrSvc:        attrSvc,
+		LogSvc:         logSvc,
+		TaskSvc:        taskSvc,
+		Streams:        streamMgr,
+		Logger:         logger,
+		AuthSvc:        authSvc,
+		OrgRepo:        orgRepo,
+		MembershipRepo: membershipRepo,
+	})
 
 	// Start servers
 	errCh := make(chan error, 2)

@@ -20,11 +20,12 @@ func NewTaskRepository(pool *pgxpool.Pool) *TaskRepository {
 }
 
 func (r *TaskRepository) Create(ctx context.Context, task *domain.Task) error {
+	orgID := orgIDFromContext(ctx)
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO tasks (id, agent_id, trigger_id, status, prompt, context)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO tasks (id, agent_id, trigger_id, status, prompt, context, org_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING created_at, updated_at`,
-		task.ID, task.AgentID, task.TriggerID, task.Status, task.Prompt, task.Context,
+		task.ID, task.AgentID, task.TriggerID, task.Status, task.Prompt, task.Context, nullIfEmpty(orgID),
 	).Scan(&task.CreatedAt, &task.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("inserting task: %w", err)
@@ -34,10 +35,18 @@ func (r *TaskRepository) Create(ctx context.Context, task *domain.Task) error {
 
 func (r *TaskRepository) Get(ctx context.Context, id string) (*domain.Task, error) {
 	t := &domain.Task{}
-	err := r.pool.QueryRow(ctx,
-		`SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at
-		 FROM tasks WHERE id = $1`, id,
-	).Scan(&t.ID, &t.AgentID, &t.TriggerID, &t.Status, &t.Prompt, &t.Context, &t.Result, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at
+		 FROM tasks WHERE id = $1`
+	args := []any{id}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&t.ID, &t.AgentID, &t.TriggerID, &t.Status, &t.Prompt, &t.Context,
+		&t.Result, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrTaskNotFound
@@ -48,9 +57,16 @@ func (r *TaskRepository) Get(ctx context.Context, id string) (*domain.Task, erro
 }
 
 func (r *TaskRepository) List(ctx context.Context) ([]*domain.Task, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at
-		 FROM tasks ORDER BY created_at DESC`)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at FROM tasks`
+	var args []any
+	if orgID != "" {
+		query += ` WHERE org_id = $1`
+		args = append(args, orgID)
+	}
+	query += ` ORDER BY created_at DESC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying tasks: %w", err)
 	}
@@ -59,9 +75,17 @@ func (r *TaskRepository) List(ctx context.Context) ([]*domain.Task, error) {
 }
 
 func (r *TaskRepository) ListByAgent(ctx context.Context, agentID string) ([]*domain.Task, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at
-		 FROM tasks WHERE agent_id = $1 ORDER BY created_at DESC`, agentID)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at
+		 FROM tasks WHERE agent_id = $1`
+	args := []any{agentID}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+	query += ` ORDER BY created_at DESC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying tasks by agent: %w", err)
 	}
@@ -70,9 +94,17 @@ func (r *TaskRepository) ListByAgent(ctx context.Context, agentID string) ([]*do
 }
 
 func (r *TaskRepository) ListByStatus(ctx context.Context, status domain.TaskStatus) ([]*domain.Task, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at
-		 FROM tasks WHERE status = $1 ORDER BY created_at ASC`, status)
+	orgID := orgIDFromContext(ctx)
+	query := `SELECT id, agent_id, trigger_id, status, prompt, context, result, created_at, updated_at, completed_at
+		 FROM tasks WHERE status = $1`
+	args := []any{status}
+	if orgID != "" {
+		query += ` AND org_id = $2`
+		args = append(args, orgID)
+	}
+	query += ` ORDER BY created_at ASC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying tasks by status: %w", err)
 	}

@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,21 +48,27 @@ type AuthService interface {
 	DeleteServiceAccount(ctx context.Context, id string) error
 	RotateServiceAccountSecret(ctx context.Context, id string) (newSecret string, err error)
 
+	// Admin operations.
+	ReconcilePersonalOrgs(ctx context.Context) (*auth.ReconcileResult, error)
+
 	// Credential resolution (used by middleware).
-	ResolveAPIToken(ctx context.Context, rawToken string) (*domain.Principal, error)
-	ResolveServiceAccountCredentials(ctx context.Context, clientID, clientSecret string) (*domain.Principal, error)
+	// Resolve methods return a Principal and optionally an OrgContext (nil when no org is bound).
+	ResolveAPIToken(ctx context.Context, rawToken string) (*domain.Principal, *domain.OrgContext, error)
+	ResolveServiceAccountCredentials(ctx context.Context, clientID, clientSecret string) (*domain.Principal, *domain.OrgContext, error)
 	ResolveSession(ctx context.Context, sessionID string) (*domain.Principal, error)
 }
 
 type authService struct {
-	userRepo     domain.UserRepository
-	saRepo       domain.ServiceAccountRepository
-	tokenRepo    domain.APITokenRepository
-	sessionStore domain.SessionStore
-	providers    *auth.ProviderRegistry
-	sessionTTL   time.Duration
-	allowSignup  bool
-	logger       *slog.Logger
+	userRepo       domain.UserRepository
+	saRepo         domain.ServiceAccountRepository
+	tokenRepo      domain.APITokenRepository
+	sessionStore   domain.SessionStore
+	orgRepo        domain.OrganizationRepository
+	membershipRepo domain.MembershipRepository
+	providers      *auth.ProviderRegistry
+	sessionTTL     time.Duration
+	allowSignup    bool
+	logger         *slog.Logger
 }
 
 func NewAuthService(
@@ -68,20 +76,24 @@ func NewAuthService(
 	saRepo domain.ServiceAccountRepository,
 	tokenRepo domain.APITokenRepository,
 	sessionStore domain.SessionStore,
+	orgRepo domain.OrganizationRepository,
+	membershipRepo domain.MembershipRepository,
 	providers *auth.ProviderRegistry,
 	sessionTTL time.Duration,
 	allowSignup bool,
 	logger *slog.Logger,
 ) AuthService {
 	return &authService{
-		userRepo:     userRepo,
-		saRepo:       saRepo,
-		tokenRepo:    tokenRepo,
-		sessionStore: sessionStore,
-		providers:    providers,
-		sessionTTL:   sessionTTL,
-		allowSignup:  allowSignup,
-		logger:       logger,
+		userRepo:       userRepo,
+		saRepo:         saRepo,
+		tokenRepo:      tokenRepo,
+		sessionStore:   sessionStore,
+		orgRepo:        orgRepo,
+		membershipRepo: membershipRepo,
+		providers:      providers,
+		sessionTTL:     sessionTTL,
+		allowSignup:    allowSignup,
+		logger:         logger,
 	}
 }
 
@@ -116,6 +128,10 @@ func (s *authService) Register(ctx context.Context, email, password, displayName
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, domain.ErrUserAlreadyExists
+	}
+
+	if err := s.createPersonalOrg(ctx, user); err != nil {
+		s.logger.Error("failed to create personal org for new user", "user_id", user.ID, "error", err)
 	}
 
 	s.logger.Info("new user registered", "user_id", user.ID, "email", email)
@@ -198,6 +214,9 @@ func (s *authService) HandleOAuthCallback(ctx context.Context, providerName, cod
 		}
 		if err := s.userRepo.Create(ctx, user); err != nil {
 			return nil, err
+		}
+		if err := s.createPersonalOrg(ctx, user); err != nil {
+			s.logger.Error("failed to create personal org for OAuth user", "user_id", user.ID, "error", err)
 		}
 		s.logger.Info("created new user via OAuth", "provider", providerName, "user_id", user.ID, "email", user.Email)
 	}
@@ -318,18 +337,27 @@ func (s *authService) RotateServiceAccountSecret(ctx context.Context, id string)
 	return secret, nil
 }
 
+// --- Admin Operations ---
+
+func (s *authService) ReconcilePersonalOrgs(ctx context.Context) (*auth.ReconcileResult, error) {
+	if s.orgRepo == nil || s.membershipRepo == nil {
+		return &auth.ReconcileResult{}, nil
+	}
+	return auth.ReconcilePersonalOrgs(ctx, s.userRepo, s.orgRepo, s.membershipRepo, s.logger)
+}
+
 // --- Credential Resolution (used by middleware) ---
 
-func (s *authService) ResolveAPIToken(ctx context.Context, rawToken string) (*domain.Principal, error) {
+func (s *authService) ResolveAPIToken(ctx context.Context, rawToken string) (*domain.Principal, *domain.OrgContext, error) {
 	tokenHash := auth.HashToken(rawToken)
 
 	token, err := s.tokenRepo.GetByHash(ctx, tokenHash)
 	if err != nil {
-		return nil, domain.ErrAuthRequired
+		return nil, nil, domain.ErrAuthRequired
 	}
 
 	if token.ExpiresAt != nil && time.Now().After(*token.ExpiresAt) {
-		return nil, domain.ErrTokenExpired
+		return nil, nil, domain.ErrTokenExpired
 	}
 
 	// Update last-used timestamp asynchronously (best-effort).
@@ -339,65 +367,103 @@ func (s *authService) ResolveAPIToken(ctx context.Context, rawToken string) (*do
 		_ = s.tokenRepo.UpdateLastUsed(bgCtx, token.ID)
 	}()
 
+	var principal *domain.Principal
+
 	// Resolve the owner to build the principal.
 	switch token.OwnerType {
 	case domain.PrincipalUser:
 		user, err := s.userRepo.Get(ctx, token.OwnerID)
 		if err != nil {
-			return nil, domain.ErrAuthRequired
+			return nil, nil, domain.ErrAuthRequired
 		}
 		if user.Disabled {
-			return nil, domain.ErrAuthRequired
+			return nil, nil, domain.ErrAuthRequired
 		}
-		return &domain.Principal{
+		principal = &domain.Principal{
 			ID:          user.ID,
 			Type:        domain.PrincipalUser,
 			DisplayName: user.DisplayName,
 			Email:       user.Email,
 			TokenID:     token.ID,
 			Roles:       user.Roles,
-		}, nil
+		}
 
 	case domain.PrincipalServiceAccount:
 		sa, err := s.saRepo.Get(ctx, token.OwnerID)
 		if err != nil {
-			return nil, domain.ErrAuthRequired
+			return nil, nil, domain.ErrAuthRequired
 		}
 		if sa.Disabled {
-			return nil, domain.ErrAuthRequired
+			return nil, nil, domain.ErrAuthRequired
 		}
-		return &domain.Principal{
+		principal = &domain.Principal{
 			ID:          sa.ID,
 			Type:        domain.PrincipalServiceAccount,
 			DisplayName: sa.Name,
 			TokenID:     token.ID,
 			Roles:       sa.Roles,
-		}, nil
+		}
 
 	default:
-		return nil, domain.ErrAuthRequired
+		return nil, nil, domain.ErrAuthRequired
 	}
+
+	// Resolve org context from the token's org_id.
+	oc := s.resolveOrgContext(ctx, token.OrgID, principal.ID)
+	return principal, oc, nil
 }
 
-func (s *authService) ResolveServiceAccountCredentials(ctx context.Context, clientID, clientSecret string) (*domain.Principal, error) {
+func (s *authService) ResolveServiceAccountCredentials(ctx context.Context, clientID, clientSecret string) (*domain.Principal, *domain.OrgContext, error) {
 	sa, err := s.saRepo.Get(ctx, clientID)
 	if err != nil {
-		return nil, domain.ErrInvalidCredentials
+		return nil, nil, domain.ErrInvalidCredentials
 	}
 	if sa.Disabled {
-		return nil, domain.ErrInvalidCredentials
+		return nil, nil, domain.ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(sa.SecretHash), []byte(clientSecret)); err != nil {
-		return nil, domain.ErrInvalidCredentials
+		return nil, nil, domain.ErrInvalidCredentials
 	}
 
-	return &domain.Principal{
+	principal := &domain.Principal{
 		ID:          sa.ID,
 		Type:        domain.PrincipalServiceAccount,
 		DisplayName: sa.Name,
 		Roles:       sa.Roles,
-	}, nil
+	}
+
+	oc := s.resolveOrgContext(ctx, sa.OrgID, sa.ID)
+	return principal, oc, nil
+}
+
+// resolveOrgContext looks up the org and membership to build an OrgContext.
+// Returns nil if orgID is empty or repos aren't configured.
+func (s *authService) resolveOrgContext(ctx context.Context, orgID, principalID string) *domain.OrgContext {
+	if orgID == "" || s.orgRepo == nil || s.membershipRepo == nil {
+		return nil
+	}
+
+	org, err := s.orgRepo.Get(ctx, orgID)
+	if err != nil {
+		return nil
+	}
+
+	membership, err := s.membershipRepo.GetByOrgAndUser(ctx, orgID, principalID)
+	if err != nil {
+		// Service accounts may not have an explicit membership — default to member role.
+		return &domain.OrgContext{
+			OrgID:   org.ID,
+			OrgSlug: org.Slug,
+			OrgRole: domain.OrgRoleMember,
+		}
+	}
+
+	return &domain.OrgContext{
+		OrgID:   org.ID,
+		OrgSlug: org.Slug,
+		OrgRole: domain.OrgRole(membership.Role),
+	}
 }
 
 func (s *authService) ResolveSession(ctx context.Context, sessionID string) (*domain.Principal, error) {
@@ -441,4 +507,54 @@ func (s *authService) createSession(ctx context.Context, userID string) (*domain
 		return nil, err
 	}
 	return session, nil
+}
+
+func (s *authService) createPersonalOrg(ctx context.Context, user *domain.User) error {
+	if s.orgRepo == nil || s.membershipRepo == nil {
+		return nil // orgs not configured
+	}
+
+	// Check if personal org already exists.
+	if _, err := s.orgRepo.GetPersonalOrg(ctx, user.ID); err == nil {
+		return nil // already exists
+	}
+
+	name := user.DisplayName
+	if name == "" {
+		name = user.Email
+	}
+
+	org := &domain.Organization{
+		ID:       uuid.New().String(),
+		Name:     name + "'s Workspace",
+		Slug:     slugFromEmail(user.Email) + "-" + user.ID[:8],
+		Personal: true,
+		OwnerID:  user.ID,
+	}
+	if err := s.orgRepo.Create(ctx, org); err != nil {
+		return err
+	}
+
+	membership := &domain.Membership{
+		ID:     uuid.New().String(),
+		OrgID:  org.ID,
+		UserID: user.ID,
+		Role:   domain.OrgRoleOwner,
+	}
+	return s.membershipRepo.Create(ctx, membership)
+}
+
+var slugRegexp = regexp.MustCompile(`[^a-z0-9-]`)
+
+func slugFromEmail(email string) string {
+	local := strings.SplitN(email, "@", 2)[0]
+	slug := strings.ToLower(local)
+	slug = strings.ReplaceAll(slug, ".", "-")
+	slug = strings.ReplaceAll(slug, "_", "-")
+	slug = slugRegexp.ReplaceAllString(slug, "")
+	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		slug = "user"
+	}
+	return slug
 }

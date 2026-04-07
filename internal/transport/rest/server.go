@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/robwittman/pillar/internal/domain"
 	"github.com/robwittman/pillar/internal/service"
 )
 
@@ -20,7 +21,12 @@ type ServerConfig struct {
 	TriggerSvc service.TriggerService
 	TaskSvc    service.TaskService
 	AuthSvc    service.AuthService // nil when auth is disabled
+	OrgSvc     service.OrgService  // nil when auth is disabled
 	Logger     *slog.Logger
+
+	// Org repos for middleware (nil when auth is disabled)
+	OrgRepo        domain.OrganizationRepository
+	MembershipRepo domain.MembershipRepository
 }
 
 func NewServer(cfg ServerConfig) http.Handler {
@@ -42,12 +48,16 @@ func NewServer(cfg ServerConfig) http.Handler {
 	tkh := NewTaskHandlers(cfg.TaskSvc, cfg.Logger)
 
 	var authH *AuthHandlers
+	var orgH *OrgHandlers
 	authEnabled := cfg.AuthSvc != nil
 	if authEnabled {
 		authH = NewAuthHandlers(cfg.AuthSvc, cfg.Logger)
 	}
+	if cfg.OrgSvc != nil {
+		orgH = NewOrgHandlers(cfg.OrgSvc, cfg.Logger)
+	}
 
-	RegisterRoutes(r, h, ch, wh, ah, lh, sh, trh, tkh, authH, cfg.AuthSvc, authEnabled)
+	RegisterRoutes(r, h, ch, wh, ah, lh, sh, trh, tkh, authH, orgH, cfg.AuthSvc, authEnabled, cfg.OrgRepo, cfg.MembershipRepo)
 
 	return r
 }

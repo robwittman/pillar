@@ -344,6 +344,36 @@ func setSessionCookie(w http.ResponseWriter, session *domain.Session) {
 	})
 }
 
+// ReconcilePersonalOrgs finds users without personal orgs and creates them.
+func (h *AuthHandlers) ReconcilePersonalOrgs(w http.ResponseWriter, r *http.Request) {
+	// Check that caller is an admin.
+	principal, ok := auth.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	isAdmin := false
+	for _, role := range principal.Roles {
+		if role == "admin" {
+			isAdmin = true
+			break
+		}
+	}
+	if !isAdmin {
+		writeError(w, http.StatusForbidden, "admin role required")
+		return
+	}
+
+	result, err := h.authSvc.ReconcilePersonalOrgs(r.Context())
+	if err != nil {
+		h.logger.Error("reconciliation failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "reconciliation failed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
 func generateOAuthState() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

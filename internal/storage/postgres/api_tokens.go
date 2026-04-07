@@ -26,12 +26,13 @@ func (r *APITokenRepository) Create(ctx context.Context, token *domain.APIToken)
 		return fmt.Errorf("marshaling scopes: %w", err)
 	}
 
+	orgID := orgIDFromContext(ctx)
 	err = r.pool.QueryRow(ctx,
-		`INSERT INTO api_tokens (id, name, token_hash, owner_id, owner_type, scopes, expires_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO api_tokens (id, name, token_hash, owner_id, owner_type, scopes, expires_at, org_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING created_at`,
 		token.ID, token.Name, token.TokenHash, token.OwnerID, token.OwnerType,
-		scopes, token.ExpiresAt,
+		scopes, token.ExpiresAt, nullIfEmpty(orgID),
 	).Scan(&token.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("inserting api token: %w", err)
@@ -41,19 +42,20 @@ func (r *APITokenRepository) Create(ctx context.Context, token *domain.APIToken)
 
 func (r *APITokenRepository) Get(ctx context.Context, id string) (*domain.APIToken, error) {
 	return r.scanOne(ctx,
-		`SELECT id, name, token_hash, owner_id, owner_type, scopes, expires_at, last_used_at, created_at
+		`SELECT id, name, token_hash, owner_id, owner_type, org_id, scopes, expires_at, last_used_at, created_at
 		 FROM api_tokens WHERE id = $1`, id)
 }
 
+// GetByHash looks up a token by its hash. No org scoping — used for credential resolution.
 func (r *APITokenRepository) GetByHash(ctx context.Context, hash string) (*domain.APIToken, error) {
 	return r.scanOne(ctx,
-		`SELECT id, name, token_hash, owner_id, owner_type, scopes, expires_at, last_used_at, created_at
+		`SELECT id, name, token_hash, owner_id, owner_type, org_id, scopes, expires_at, last_used_at, created_at
 		 FROM api_tokens WHERE token_hash = $1`, hash)
 }
 
 func (r *APITokenRepository) ListByOwner(ctx context.Context, ownerID string, ownerType domain.PrincipalType) ([]*domain.APIToken, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, token_hash, owner_id, owner_type, scopes, expires_at, last_used_at, created_at
+		`SELECT id, name, token_hash, owner_id, owner_type, org_id, scopes, expires_at, last_used_at, created_at
 		 FROM api_tokens WHERE owner_id = $1 AND owner_type = $2
 		 ORDER BY created_at DESC`, ownerID, ownerType)
 	if err != nil {
@@ -102,7 +104,7 @@ func (r *APITokenRepository) scanOne(ctx context.Context, query string, args ...
 	var scopes []byte
 
 	err := r.pool.QueryRow(ctx, query, args...).Scan(
-		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType,
+		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType, &token.OrgID,
 		&scopes, &token.ExpiresAt, &token.LastUsedAt, &token.CreatedAt,
 	)
 	if err != nil {
@@ -122,7 +124,7 @@ func (r *APITokenRepository) scanRow(rows pgx.Rows) (*domain.APIToken, error) {
 	var scopes []byte
 
 	if err := rows.Scan(
-		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType,
+		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType, &token.OrgID,
 		&scopes, &token.ExpiresAt, &token.LastUsedAt, &token.CreatedAt,
 	); err != nil {
 		return nil, fmt.Errorf("scanning api token: %w", err)
