@@ -159,7 +159,6 @@ jobs:
           PILLAR_GRPC_ADDR: ":9090"
           PILLAR_AUTH_ENABLED: "true"
           PILLAR_SESSION_SECRET: "test-secret-for-ci-only-change-me"
-          PILLAR_AUTH_ALLOW_SIGNUP: "true"
           PILLAR_CONFIG_FILE: ""
 
       - name: Run API e2e tests

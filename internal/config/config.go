@@ -34,7 +34,7 @@ type AuthConfig struct {
 	Enabled       bool                 `env:"PILLAR_AUTH_ENABLED" envDefault:"false" yaml:"enabled"`
 	SessionSecret string               `env:"PILLAR_SESSION_SECRET" yaml:"session_secret"`
 	SessionTTL    string               `env:"PILLAR_SESSION_TTL" envDefault:"24h" yaml:"session_ttl"`
-	AllowSignup   bool                 `env:"PILLAR_AUTH_ALLOW_SIGNUP" envDefault:"false" yaml:"allow_signup"`
+	AllowSignup   bool                 `env:"PILLAR_AUTH_ALLOW_SIGNUP" envDefault:"true" yaml:"allow_signup"`
 	Providers     []AuthProviderConfig `yaml:"providers"`
 }
 

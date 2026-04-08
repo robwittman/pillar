@@ -161,6 +161,14 @@ func main() {
 		orgRepo = pgstore.NewOrganizationRepository(pool)
 		membershipRepo = pgstore.NewMembershipRepository(pool)
 
+		// Default to a local provider if none are configured.
+		if len(cfg.Auth.Providers) == 0 {
+			cfg.Auth.Providers = []config.AuthProviderConfig{
+				{Type: "local", Name: "local"},
+			}
+			logger.Info("no auth providers configured, defaulting to local")
+		}
+
 		providerRegistry, err := auth.NewProviderRegistry(ctx, cfg.Auth.Providers, userRepo)
 		if err != nil {
 			logger.Error("failed to initialize auth providers", "error", err)
