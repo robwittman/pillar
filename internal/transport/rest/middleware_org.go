@@ -19,6 +19,13 @@ func OrgResolver(membershipRepo domain.MembershipRepository, orgRepo domain.Orga
 				return
 			}
 
+			// Skip if org context was already set by credential resolution
+			// (e.g. org-scoped API token or service account Basic auth).
+			if _, hasOrg := auth.OrgFromContext(r.Context()); hasOrg {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			orgHeader := r.Header.Get("X-Org-ID")
 
 			if orgHeader == "" {

@@ -1,4 +1,4 @@
-.PHONY: build build-ctl build-example-agent build-ui dev-ui run test test-integration lint clean docker-up docker-down migrate-up migrate-down proto docker-build-agent kind-load-agent
+.PHONY: build build-ctl build-example-agent build-ui dev-ui run test test-integration test-e2e-api test-e2e-ui test-e2e playwright-install lint clean docker-up docker-down migrate-up migrate-down proto docker-build-agent kind-load-agent
 
 BINARY := bin/pillar
 AGENT_IMAGE ?= pillar-agent:latest
@@ -29,6 +29,17 @@ test:
 
 test-integration:
 	go test -tags integration ./... -v -race -count=1
+
+test-e2e-api:
+	go test -tags e2e ./tests/e2e/... -v -count=1 -timeout 5m
+
+test-e2e-ui:
+	cd tests/playwright && npx playwright test
+
+test-e2e: test-e2e-api test-e2e-ui
+
+playwright-install:
+	cd tests/playwright && npm install && npx playwright install chromium
 
 lint:
 	golangci-lint run ./...
