@@ -102,9 +102,10 @@ func (r *APITokenRepository) Delete(ctx context.Context, id string) error {
 func (r *APITokenRepository) scanOne(ctx context.Context, query string, args ...any) (*domain.APIToken, error) {
 	token := &domain.APIToken{}
 	var scopes []byte
+	var orgID *string
 
 	err := r.pool.QueryRow(ctx, query, args...).Scan(
-		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType, &token.OrgID,
+		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType, &orgID,
 		&scopes, &token.ExpiresAt, &token.LastUsedAt, &token.CreatedAt,
 	)
 	if err != nil {
@@ -112,6 +113,9 @@ func (r *APITokenRepository) scanOne(ctx context.Context, query string, args ...
 			return nil, domain.ErrTokenNotFound
 		}
 		return nil, fmt.Errorf("querying api token: %w", err)
+	}
+	if orgID != nil {
+		token.OrgID = *orgID
 	}
 	if err := json.Unmarshal(scopes, &token.Scopes); err != nil {
 		return nil, fmt.Errorf("unmarshaling scopes: %w", err)
@@ -122,12 +126,16 @@ func (r *APITokenRepository) scanOne(ctx context.Context, query string, args ...
 func (r *APITokenRepository) scanRow(rows pgx.Rows) (*domain.APIToken, error) {
 	token := &domain.APIToken{}
 	var scopes []byte
+	var orgID *string
 
 	if err := rows.Scan(
-		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType, &token.OrgID,
+		&token.ID, &token.Name, &token.TokenHash, &token.OwnerID, &token.OwnerType, &orgID,
 		&scopes, &token.ExpiresAt, &token.LastUsedAt, &token.CreatedAt,
 	); err != nil {
 		return nil, fmt.Errorf("scanning api token: %w", err)
+	}
+	if orgID != nil {
+		token.OrgID = *orgID
 	}
 	if err := json.Unmarshal(scopes, &token.Scopes); err != nil {
 		return nil, fmt.Errorf("unmarshaling scopes: %w", err)

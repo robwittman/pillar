@@ -93,3 +93,91 @@ jobs:
         run: |
           go build -o bin/pillar ./cmd/pillar
           go build -o bin/pillarctl ./cmd/pillarctl
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [build]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pillar
+          POSTGRES_PASSWORD: pillar
+          POSTGRES_DB: pillar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U pillar"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build UI
+        run: cd web && npm ci && npm run build
+
+      - name: Build server
+        run: go build -o bin/pillar ./cmd/pillar
+
+      - name: Run migrations
+        run: go run ./scripts/migrate.go -direction up
+        env:
+          PILLAR_POSTGRES_URL: "postgres://pillar:pillar@localhost:5432/pillar?sslmode=disable"
+
+      - name: Start server
+        run: |
+          bin/pillar &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/health && break
+            sleep 1
+          done
+        env:
+          PILLAR_POSTGRES_URL: "postgres://pillar:pillar@localhost:5432/pillar?sslmode=disable"
+          PILLAR_REDIS_ADDR: "localhost:6379"
+          PILLAR_HTTP_ADDR: ":8080"
+          PILLAR_GRPC_ADDR: ":9090"
+          PILLAR_AUTH_ENABLED: "true"
+          PILLAR_SESSION_SECRET: "test-secret-for-ci-only-change-me"
+          PILLAR_CONFIG_FILE: ""
+
+      - name: Run API e2e tests
+        run: go test -tags e2e ./tests/e2e/... -v -count=1 -timeout 5m
+        env:
+          PILLAR_TEST_URL: "http://localhost:8080"
+
+      - name: Install Playwright
+        run: cd tests/playwright && npm ci && npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: cd tests/playwright && npx playwright test
+        env:
+          PILLAR_TEST_URL: "http://localhost:8080"
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: tests/playwright/playwright-report/
+          retention-days: 7

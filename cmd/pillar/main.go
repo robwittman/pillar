@@ -161,6 +161,14 @@ func main() {
 		orgRepo = pgstore.NewOrganizationRepository(pool)
 		membershipRepo = pgstore.NewMembershipRepository(pool)
 
+		// Default to a local provider if none are configured.
+		if len(cfg.Auth.Providers) == 0 {
+			cfg.Auth.Providers = []config.AuthProviderConfig{
+				{Type: "local", Name: "local"},
+			}
+			logger.Info("no auth providers configured, defaulting to local")
+		}
+
 		providerRegistry, err := auth.NewProviderRegistry(ctx, cfg.Auth.Providers, userRepo)
 		if err != nil {
 			logger.Error("failed to initialize auth providers", "error", err)
@@ -222,23 +230,25 @@ func main() {
 
 	// SPA file server from embedded assets
 	distFS, _ := fs.Sub(web.Assets, "dist")
+	indexHTML, _ := fs.ReadFile(web.Assets, "dist/index.html")
 	fileServer := http.FileServer(http.FS(distFS))
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Serve static files if they exist; otherwise serve index.html for SPA routing
-		path := r.URL.Path
-		if path == "/" {
-			r.URL.Path = "/index.html"
+		// Serve index.html for root and SPA client-side routes.
+		if r.URL.Path == "/" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(indexHTML)
+			return
 		}
-		// Check if file exists in embedded FS
+		// Check if static file exists in embedded FS.
 		f, err := distFS.Open(strings.TrimPrefix(r.URL.Path, "/"))
 		if err == nil {
 			f.Close()
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		// Fallback to index.html for client-side routes
-		r.URL.Path = "/index.html"
-		fileServer.ServeHTTP(w, r)
+		// Fallback to index.html for client-side routes.
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexHTML)
 	})
 
 	mux := http.NewServeMux()
