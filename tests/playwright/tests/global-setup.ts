@@ -35,7 +35,7 @@ setup('authenticate', async ({ page }) => {
   }
 
   // Wait for redirect to dashboard.
-  await expect(page.getByText('Dashboard')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 10_000 })
 
   // Save auth state.
   const authDir = path.join(__dirname, '.auth')
