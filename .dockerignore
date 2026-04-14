@@ -1,0 +1,8 @@
+bin/
+web/node_modules/
+web/dist/
+tests/playwright/node_modules/
+tests/playwright/test-results/
+tests/playwright/playwright-report/
+.git/
+*.md
